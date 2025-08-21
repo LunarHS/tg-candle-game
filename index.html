@@ -6,179 +6,215 @@
   name="viewport"
   content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
 />
-<title>Crypto Candle Climb — TG Mini App</title>
+<title>Crypto Candle Climb — TG Mini App (9:16 stage)</title>
 
-<!-- Telegram WebApp SDK -->
+<!-- Telegram WebApp SDK (safe if not in TG) -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
 <style>
   :root{
-    --bg:#0b0f14; --panel:rgba(15,22,30,.9); --text:#e6f0ff; --green:#2ecc71; --red:#e74c3c;
-    --grid:#9ab3ff; --shield:#60a5fa; --rail:#111722; --railborder:#243147;
+    --bg:#0b0f14; --panel:rgba(15,22,30,.9); --text:#e6f0ff;
+    --green:#2ecc71; --red:#e74c3c; --grid:#9ab3ff;
+    --shield:#60a5fa; --rail:#111722; --railborder:#243147;
   }
   html,body{
-    margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; overflow:hidden;
+    margin:0; padding:0; height:100%; width:100%;
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    overflow:hidden;
   }
-  /* Canvas fills the **actual** visible area; JS also sizes pixels for DPR */
-  #game{ display:block; background:linear-gradient(180deg,#0b0f14,#0e141c); width:100vw; height:100dvh; }
 
-  .hud{position:fixed; inset:0; pointer-events:none}
+  /* The fixed 9:16 stage we scale (base logical size: 900x1600) */
+  #stage {
+    position: fixed;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%) scale(1);
+    transform-origin: top left;
+    width: 900px;  /* 9  */
+    height: 1600px;/*  :16 */
+    background: #0b0f14;
+    border-radius: 0;
+    overflow: hidden;
+  }
+
+  /* Canvas is sized to the stage; we render at DPR internally */
+  #game { display:block; width:100%; height:100%; background:linear-gradient(180deg,#0b0f14,#0e141c); }
+
+  /* Everything else is **inside** the stage so it scales with it */
+  .hud{position:absolute; inset:0; pointer-events:none}
   .scorebox{
-    position:absolute; top:8px; left:8px; background:var(--panel);
-    padding:8px 10px; border-radius:10px; font-weight:800; font-size:14px; pointer-events:auto
+    position:absolute; top:12px; left:12px; background:var(--panel);
+    padding:10px 12px; border-radius:12px; font-weight:800; font-size:20px; pointer-events:auto
   }
-  .mini{position:absolute; top:8px; right:8px; display:flex; gap:8px}
+  .mini{position:absolute; top:12px; right:12px; display:flex; gap:10px}
   .mini button{
-    pointer-events:auto; border:1px solid rgba(255,255,255,.08); background:var(--panel); color:var(--text);
-    padding:8px 10px; border-radius:10px; font-weight:700
+    pointer-events:auto; border:1px solid rgba(255,255,255,.08);
+    background:var(--panel); color:var(--text);
+    padding:10px 12px; border-radius:12px; font-weight:700; font-size:18px;
   }
+
   .controls{
-    position:fixed; left:0; right:0; bottom:env(safe-area-inset-bottom,0); display:flex; gap:10px; padding:8px
+    position:absolute; left:0; right:0; bottom:0;
+    display:flex; gap:16px; padding:16px; padding-bottom:24px;
   }
   .btn{
-    flex:1; min-height:64px; border-radius:14px; border:1px solid rgba(255,255,255,.08);
-    background:rgba(63, 30, 117, 0.1); color:var(--text); font-size:18px; font-weight:900;
+    flex:1; min-height:120px; border-radius:18px; border:1px solid rgba(255,255,255,.08);
+    background:rgba(63, 30, 117, 0.1); color:var(--text); font-size:32px; font-weight:900;
     box-shadow:0 10px 30px rgba(0,0,0,.35)
   }
   .btn:active,.btn.flash{ background:rgba(255,255,255,.2) }
 
   .overlay{
-    position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:20px;
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center; padding:24px;
     background:rgba(0,0,0,.55)
   }
   .overlay.show{ display:flex }
   .panel{
-    width:min(560px,92vw); background:var(--panel);
-    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:16px
+    width:min(720px,92%); background:var(--panel);
+    border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:20px
   }
-  .panel h1{ margin:0 0 8px; font-size:22px }
-  .row{ display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:10px }
+  .panel h1{ margin:0 0 10px; font-size:32px }
+  .row{ display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-top:12px }
   .primary{
-    background:linear-gradient(180deg,#6aa8ff,#4f90ff); color:#fff; border:none; padding:10px 16px;
-    border-radius:12px; font-weight:800; cursor:pointer
+    background:linear-gradient(180deg,#6aa8ff,#4f90ff); color:#fff; border:none; padding:12px 18px;
+    border-radius:14px; font-weight:800; cursor:pointer; font-size:20px;
   }
-  .field{ display:flex; gap:8px; align-items:center; margin-top:10px }
+  .field{ display:flex; gap:10px; align-items:center; margin-top:12px; font-size:18px }
   .field input[type=text]{
-    flex:1; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+    flex:1; padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
     background:rgba(255,255,255,.06); color:var(--text); outline:none; font-weight:800;
-    text-transform:uppercase; text-align:center
+    text-transform:uppercase; text-align:center; font-size:20px;
   }
-  .field input[type=file]{ padding:6px; background:transparent; border:none }
-  table{ width:100%; border-collapse:collapse; margin-top:10px; font-size:14px }
-  th,td{ padding:6px 8px; border-bottom:1px dashed rgba(255,255,255,.12) }
+  .field input[type=file]{ padding:6px; background:transparent; border:none; font-size:16px }
+  table{ width:100%; border-collapse:collapse; margin-top:10px; font-size:18px }
+  th,td{ padding:8px 10px; border-bottom:1px dashed rgba(255,255,255,.12) }
   .muted{ opacity:.75 }
   .player-rank{ background:rgba(255,255,255,.06) }
 
-  /* right-side market-cap rail (overlay) */
+  /* right-side market-cap rail (inside stage) */
   .rail{
-    position:fixed; top:0; right:0; width:68px; height:100dvh; pointer-events:none;
+    position:absolute; top:0; right:0; width:108px; height:100%; pointer-events:none;
     background:linear-gradient(180deg,var(--rail),#0b1118); border-left:1px solid var(--railborder)
   }
 </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
-  <div id="capRail" class="rail"></div>
 
-  <div class="hud">
-    <div class="scorebox">
-      Chart: <span id="pair">ETH/USDT</span> (<span id="score">0</span>) · Best: <span id="best">0</span> ·
-      <span id="shieldHUD" class="muted"></span>
-    </div>
-    <div class="mini">
-      <button id="pauseBtn">⏸️</button>
-      <button id="muteBtn">🔊</button>
-    </div>
-  </div>
+  <!-- Scaled 9:16 stage -->
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="capRail" class="rail"></div>
 
-  <div class="controls">
-    <button id="buyBtn" class="btn">BUY (hold)</button>
-    <button id="sellBtn" class="btn">SELL (hold)</button>
-  </div>
-
-  <!-- Start Overlay -->
-  <div id="startOv" class="overlay show">
-    <div class="panel">
-      <h1>Print to ATH</h1>
-      <p>
-        Trail alternates green/red. Hold <b>BUY</b> for a single up candle; <b>SELL</b> for a single down candle.
-        Avoid rugs, red sell candles, paper hands 🤲, honey pots 🍯. Ceiling & floor rise as you score.
-        Power-up: <b>Diamond Hands</b> — shield to smash obstacles for 5s.
-      </p>
-      <div class="field">
-        <label class="muted">Chart prefix</label>
-        <input id="nameInput" type="text" maxlength="8" value="ETH" placeholder="ETH" />
+    <div class="hud">
+      <div class="scorebox">
+        Chart: <span id="pair">ETH/USDT</span> (<span id="score">0</span>) · Best: <span id="best">0</span> ·
+        <span id="shieldHUD" class="muted"></span>
       </div>
-      <div class="field">
-        <label class="muted">Token logo</label>
-        <input id="logoInput" type="file" accept="image/*" />
-      </div>
-      <div class="row"><button id="startBtn" class="primary">Start</button></div>
-    </div>
-  </div>
-
-  <!-- Game Over / Leaderboard -->
-  <div id="overOv" class="overlay">
-    <div class="panel">
-      <h1>Game Over</h1>
-      <p>Final Score: <b id="finalScore">0</b></p>
-      <p>Market Cap at death: <b id="finalCap">0</b></p>
-      <h2 style="margin:8px 0 4px;font-size:18px">Local Top 10</h2>
-      <table>
-        <thead><tr><th>#</th><th>Name</th><th>Score</th><th class="muted">Date</th></tr></thead>
-        <tbody id="lbBody"></tbody>
-      </table>
-      <div id="rankLine" class="muted" style="margin-top:8px"></div>
-      <div class="row">
-        <button id="homeBtn" class="primary" style="background:linear-gradient(180deg,#9aa6b2,#7c8794)">Home</button>
-        <button id="restartBtn" class="primary">Restart</button>
+      <div class="mini">
+        <button id="pauseBtn">⏸️</button>
+        <button id="muteBtn">🔊</button>
       </div>
     </div>
-  </div>
+
+    <div class="controls">
+      <button id="buyBtn" class="btn">BUY (hold)</button>
+      <button id="sellBtn" class="btn">SELL (hold)</button>
+    </div>
+
+    <!-- Start Overlay -->
+    <div id="startOv" class="overlay show">
+      <div class="panel">
+        <h1>Print to ATH</h1>
+        <p>
+          Trail alternates green/red. Hold <b>BUY</b> for a single up candle; <b>SELL</b> for a single down candle.
+          Avoid rugs, red sell candles, paper hands 🤲, honey pots 🍯. Ceiling & floor rise as you score.
+          Power-up: <b>Diamond Hands</b> — shield to smash obstacles for 5s.
+        </p>
+        <div class="field">
+          <label class="muted">Chart prefix</label>
+          <input id="nameInput" type="text" maxlength="8" value="ETH" placeholder="ETH" />
+        </div>
+        <div class="field">
+          <label class="muted">Token logo</label>
+          <input id="logoInput" type="file" accept="image/*" />
+        </div>
+        <div class="row"><button id="startBtn" class="primary">Start</button></div>
+      </div>
+    </div>
+
+    <!-- Game Over / Leaderboard -->
+    <div id="overOv" class="overlay">
+      <div class="panel">
+        <h1>Game Over</h1>
+        <p>Final Score: <b id="finalScore">0</b></p>
+        <p>Market Cap at death: <b id="finalCap">0</b></p>
+        <h2 style="margin:8px 0 4px;font-size:22px">Local Top 10</h2>
+        <table>
+          <thead><tr><th>#</th><th>Name</th><th>Score</th><th class="muted">Date</th></tr></thead>
+          <tbody id="lbBody"></tbody>
+        </table>
+        <div id="rankLine" class="muted" style="margin-top:8px"></div>
+        <div class="row">
+          <button id="homeBtn" class="primary" style="background:linear-gradient(180deg,#9aa6b2,#7c8794)">Home</button>
+          <button id="restartBtn" class="primary">Restart</button>
+        </div>
+      </div>
+    </div>
+  </div><!-- /stage -->
 
 <script>
-(() => {
-'use strict';
-
-  // ---------- DPR + REAL VIEWPORT SIZING (mobile/TG safe) ----------
-  const DPR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-
+(() => {'use strict';
+  // -------- Telegram helpers (optional) --------
   const IS_TG = typeof window.Telegram !== 'undefined' && Telegram.WebApp;
+  if (IS_TG) {
+    try {
+      Telegram.WebApp.ready();
+      Telegram.WebApp.expand();
+    } catch(e){}
+  }
 
-  function effectiveViewport() {
-    // CSS px (not device pixels)
+  // -------- Fixed 9:16 stage scaling --------
+  const BASE_W = 900;   // 9
+  const BASE_H = 1600;  // :16
+  const DPR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+
+  const stage  = document.getElementById('stage');
+  const canvas = document.getElementById('game');
+  const ctx    = canvas.getContext('2d');
+
+  function getViewportWH(){
     const vv = window.visualViewport;
     const tg = IS_TG ? Telegram.WebApp : null;
-    const width  = Math.floor( (tg && tg.viewportWidth) || (vv && vv.width)  || window.innerWidth );
-    const height = Math.floor( (tg && (tg.viewportStableHeight || tg.viewportHeight)) ||
-                               (vv && vv.height) || window.innerHeight );
-    return { width, height };
+    const w  = Math.floor( (tg && tg.viewportWidth) || (vv && vv.width)  || window.innerWidth );
+    const h  = Math.floor( (tg && (tg.viewportStableHeight || tg.viewportHeight)) ||
+                           (vv && vv.height) || window.innerHeight );
+    return { w, h };
   }
 
-  function sizeCanvasToViewport() {
-    const { width, height } = effectiveViewport();
-    // Make canvas pixel-perfect for current DPR
-    canvas.style.width  = width + 'px';
-    canvas.style.height = height + 'px';
-    canvas.width  = Math.floor(width * DPR);
-    canvas.height = Math.floor(height * DPR);
-    // Also pin body height so fixed overlays align
-    document.body.style.height = height + 'px';
+  function fitStage(){
+    // Scale the 900x1600 stage to fit screen (letterboxing when needed)
+    const { w, h } = getViewportWH();
+    const scale = Math.min(w / BASE_W, h / BASE_H);
+    stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
+
+    // Canvas internal pixels sized to base*DPR for crispness
+    canvas.width  = Math.floor(BASE_W * DPR);
+    canvas.height = Math.floor(BASE_H * DPR);
+    // CSS size is the stage size (before scaling)
+    canvas.style.width  = BASE_W + 'px';
+    canvas.style.height = BASE_H + 'px';
   }
 
-  sizeCanvasToViewport();
-  window.addEventListener('resize', sizeCanvasToViewport);
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', sizeCanvasToViewport);
-  }
-  if (IS_TG && Telegram.WebApp.onEvent) {
-    Telegram.WebApp.onEvent('viewportChanged', sizeCanvasToViewport);
-  }
+  fitStage();
+  window.addEventListener('resize', fitStage);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', fitStage);
+  if (IS_TG && Telegram.WebApp.onEvent) Telegram.WebApp.onEvent('viewportChanged', fitStage);
 
-  // ---------- UI refs ----------
+  // --------- From your original game (logic unchanged) ----------
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const rand=(a,b)=>a+Math.random()*(b-a);
+
+  // UI refs (all inside stage now)
   const pairEl=document.getElementById('pair'), scoreEl=document.getElementById('score'), bestEl=document.getElementById('best');
   const startOv=document.getElementById('startOv'), overOv=document.getElementById('overOv');
   const nameInput=document.getElementById('nameInput'), logoInput=document.getElementById('logoInput');
@@ -188,26 +224,22 @@
   const pauseBtn=document.getElementById('pauseBtn'), muteBtn=document.getElementById('muteBtn');
   const shieldHUD=document.getElementById('shieldHUD');
 
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const rand=(a,b)=>a+Math.random()*(b-a);
-
-  // ---------- Audio ----------
+  // Audio
   const AudioMod=(()=>{let ac=null,muted=false;const ensure=()=>{if(!ac){const A=window.AudioContext||window.webkitAudioContext;if(A) ac=new A();} return ac;}; const tone=(f=440,d=.08,t='sine',v=.2)=>{ if(muted) return; const a=ensure(); if(!a) return; const n=a.currentTime,o=a.createOscillator(),g=a.createGain(); o.type=t; o.frequency.setValueAtTime(f,n); g.gain.setValueAtTime(0,n); g.gain.linearRampToValueAtTime(v,n+.005); g.gain.exponentialRampToValueAtTime(.0001,n+d); o.connect(g).connect(a.destination); o.start(n); o.stop(n+d+.02); }; return { tap:()=>tone(520,.05,'square',.12), pickup:()=>tone(880,.12,'triangle',.2), death:()=>tone(110,.25,'sawtooth',.25), shield:()=>tone(660,.2,'sine',.25), unlock:()=>ensure(), toggle:()=>muted=!muted, isMuted:()=>muted };})();
 
-  // ---------- Leaderboard ----------
+  // Leaderboard
   const LBKEY='ccc_lb_v11';
-  const Leaderboard={
-    read(){ try{return JSON.parse(localStorage.getItem(LBKEY))||[]}catch{return[]} },
-    write(l){ localStorage.setItem(LBKEY, JSON.stringify(l)); },
-    add(name,score){ const l=this.read(); l.push({name,score,date:new Date().toISOString().slice(0,10)}); l.sort((a,b)=>b.score-a.score); this.write(l); return l.findIndex(e=>e.name===name && e.score===score); },
-    top10(){ return this.read().slice(0,10); }
-  };
+  const Leaderboard={ read(){ try{return JSON.parse(localStorage.getItem(LBKEY))||[]}catch{return[]} }, write(l){ localStorage.setItem(LBKEY, JSON.stringify(l)); }, add(name,score){ const l=this.read(); l.push({name,score,date:new Date().toISOString().slice(0,10)}); l.sort((a,b)=>b.score-a.score); this.write(l); return l.findIndex(e=>e.name===name && e.score===score); }, top10(){ return this.read().slice(0,10); }, rankOf(score){ const l=this.read(); for(let i=0;i<l.length;i++){ if(score>=l[i].score) return i; } return l.length; } };
 
-  // ---------- Market cap utilities (uncapped) ----------
-  function capTopAt(index){ const exp0=5; const exp=exp0+Math.floor(index/2); const mant=(index%2===0)?1:5; return mant*Math.pow(10,exp); }
-  function fmtCap(n){ const sign=n<0?'-':''; n=Math.abs(n); if(n<1e3) return sign+Math.round(n); const u=['k','M','B','T','Qa','Qi','Sx','Sp','Oc','No','De']; let i=-1; while(n>=1000 && i<u.length-1){ n/=1000; i++; } const d=n>=100?0:n>=10?1:2; return sign+n.toFixed(d)+u[i]; }
+  // Market cap helpers
+  function capTopAt(index){ const exp0 = 5; const exp = exp0 + Math.floor(index/2); const mant = (index % 2 === 0) ? 1 : 5; return mant * Math.pow(10, exp); }
+  function fmtCap(n){ const sign=n<0?'-':''; n=Math.abs(n); if(n<1e3) return sign + Math.round(n); const units=['k','M','B','T','Qa','Qi','Sx','Sp','Oc','No','De']; let u=-1; while(n>=1000 && u<units.length-1){ n/=1000; u++; } const digits = n>=100?0 : n>=10?1 : 2; return sign + n.toFixed(digits) + units[u]; }
+  function capAtY(y){ const top = capTopAt(State.capIndex); const span = (State.floorY - State.ceilingY) || 1; const t = clamp((y - State.ceilingY) / span, 0, 1); return Math.round(top * (1 - t)); }
 
-  // ---------- Game State ----------
+  // Canvas helpers (now fixed to BASE_W/BASE_H in CSS; DPR-scaled in pixels)
+  const W=()=>canvas.width, H=()=>canvas.height;
+
+  // Game State
   const State={ running:false, paused:false, time:0, score:0, best:0, prefix:'ETH',
     tx:0, ty:0, vx:180, vy:0, accel:520, gravity:360, damping:.985,
     camX:0, camY:0,
@@ -224,7 +256,7 @@
   };
   State.floorTargetY=State.floorY;
 
-  // ---------- Input ----------
+  // Input
   const Input={up:false,down:false};
   function pressUp(){ AudioMod.unlock(); Input.up=true; buyBtn.classList.add('flash'); AudioMod.tap(); if(!State.current) State.current={x:State.tx,y:State.ty,color:'green',h:0}; }
   function releaseUp(){ Input.up=false; buyBtn.classList.remove('flash'); finalizeHold(); }
@@ -238,16 +270,14 @@
   function togglePause(){ if(!State.running) return; State.paused=!State.paused; document.getElementById('pauseBtn').textContent=State.paused?'▶️':'⏸️'; if(!State.paused) last=performance.now(); }
   function toggleMute(){ const m=AudioMod.toggle(); document.getElementById('muteBtn').textContent=m?'🔇':'🔊'; }
 
-  // ---------- Start / Restart / Home ----------
+  // Start / Restart / Home
   startBtn.addEventListener('click',()=>{
-    // Hide Telegram MainButton once game starts
     try { if (IS_TG && Telegram.WebApp.MainButton) Telegram.WebApp.MainButton.hide(); } catch(e){}
     State.prefix=(nameInput.value||'ETH').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8)||'ETH'; pairEl.textContent=State.prefix+'/USDT';
-    const f=logoInput.files?.[0];
-    if(f){ const img=new Image(); img.onload=()=>{ State.logo=img; begin(); }; img.src=URL.createObjectURL(f); }
+    const file=logoInput.files?.[0];
+    if(file){ const img=new Image(); img.onload=()=>{ State.logo=img; begin(); }; img.src=URL.createObjectURL(file); }
     else { State.logo=null; begin(); }
   });
-
   restartBtn.addEventListener('click',()=>{ overOv.classList.remove('show'); begin(); });
   homeBtn.addEventListener('click',()=>{
     overOv.classList.remove('show');
@@ -260,39 +290,13 @@
     } catch(e){}
   });
 
-  function begin(){
-    const top10 = Leaderboard.top10();
-    State.running=true; State.paused=false; State.time=0; State.score=0; State.vx=180; State.vy=0;
-    State.tx=0; State.ty=0; State.camX=0; State.camY=0;
-    State.candles.length=0; State.current=null; State.trailCarry=0; State.trailToggle=false;
-    State.obstacles.length=0; State.nextObsX=600*DPR; State.obsSpacingScale=1.0;
-    State.mults.length=0; State.nextMultX=1200*DPR; State.powerups.length=0; State.nextPowX=1600*DPR;
-    State.ceilingY=-220*DPR; State.floorY = State.ceilingY + 520*DPR; State.floorTargetY=State.floorY;
-    State.nextMilestone=250; State.scoreExtra=0; State.shieldActive=false; State.shieldT=0; State.capIndex=0;
-    bestEl.textContent=top10[0]?.score||0; startOv.classList.remove('show'); last=performance.now();
-  }
+  function begin(){ State.running=true; State.paused=false; State.time=0; State.score=0; State.vx=180; State.vy=0; State.tx=0; State.ty=0; State.camX=0; State.camY=0; State.candles.length=0; State.current=null; State.trailCarry=0; State.trailToggle=false; State.obstacles.length=0; State.nextObsX=600*DPR; State.obsSpacingScale=1.0; State.mults.length=0; State.nextMultX=1200*DPR; State.powerups.length=0; State.nextPowX=1600*DPR; State.ceilingY=-220*DPR; State.floorY = -220*DPR + 520*DPR; State.floorTargetY=State.floorY; State.nextMilestone=250; State.scoreExtra=0; State.shieldActive=false; State.shieldT=0; State.capIndex=0; bestEl.textContent=Leaderboard.top10()[0]?.score||0; startOv.classList.remove('show'); last=performance.now(); }
 
-  // ---------- Generator helpers ----------
-  const MIN_GAP_MULT=2.2;
-  function corridorTop(){return State.ceilingY;} function corridorBot(){return State.floorY;}
-  function canPlaceSell(x,y,h){
-    const top=corridorTop(), bot=corridorBot(); if(bot-top<=0) return false;
-    const MIN_GAP=State.tipR*MIN_GAP_MULT; if(bot-top<MIN_GAP) return false;
-    const span=36*DPR; const segs=[];
-    for(const o of State.obstacles){
-      if(o.type!=='sellc') continue; if(Math.abs(o.x-x)>span) continue;
-      const a=Math.max(o.y,top), b=Math.min(o.y+o.h,bot); if(b>a) segs.push({a,b});
-    }
-    const ca=Math.max(y,top), cb=Math.min(y+h,bot); if(cb>ca) segs.push({a:ca,b:cb});
-    if(segs.length===0) return true;
-    segs.sort((A,B)=>A.a-B.a);
-    let curA=segs[0].a, curB=segs[0].b; let maxGap=Math.max(curA-top,0);
-    for(let i=1;i<segs.length;i++){const s=segs[i];
-      if(s.a<=curB){curB=Math.max(curB,s.b);} else {maxGap=Math.max(maxGap,s.a-curB); curA=s.a; curB=s.b;}
-    }
-    maxGap=Math.max(maxGap,bot-curB);
-    return maxGap>=MIN_GAP;
-  }
+  // Spawners & helpers (unchanged)
+  function pickMultiplier(score){ let w15=0.7,w2=0.2,w5=0.08,w10=0.02; if(score>1000){ w15=0.6; w2=0.22; w5=0.12; w10=0.06;} if(score>5000){ w15=0.5; w2=0.25; w5=0.15; w10=0.10;} const r=Math.random(); const thr=[w15,w15+w2,w15+w2+w5,1]; if(r<thr[0])return 1.5; if(r<thr[1])return 2; if(r<thr[2])return 5; return 10; }
+
+  const MIN_GAP_MULT=2.2; function corridorTop(){return State.ceilingY;} function corridorBot(){return State.floorY;}
+  function canPlaceSell(x,y,h){ const top=corridorTop(), bot=corridorBot(); if(bot-top<=0) return false; const MIN_GAP=State.tipR*MIN_GAP_MULT; if(bot-top<MIN_GAP) return false; const span=36*DPR; const segs=[]; for(const o of State.obstacles){ if(o.type!=='sellc') continue; if(Math.abs(o.x-x)>span) continue; const a=Math.max(o.y,top), b=Math.min(o.y+o.h,bot); if(b>a) segs.push({a,b}); } const ca=Math.max(y,top), cb=Math.min(y+h,bot); if(cb>ca) segs.push({a:ca,b:cb}); if(segs.length===0) return true; segs.sort((A,B)=>A.a-B.a); let curA=segs[0].a, curB=segs[0].b; let maxGap=Math.max(curA-top,0); for(let i=1;i<segs.length;i++){const s=segs[i]; if(s.a<=curB){curB=Math.max(curB,s.b);} else {maxGap=Math.max(maxGap,s.a-curB); curA=s.a; curB=s.b;} } maxGap=Math.max(maxGap,bot-curB); return maxGap>=MIN_GAP; }
 
   function spawnAhead(targetX){
     while(State.nextObsX < targetX + 1200*DPR){
@@ -303,78 +307,36 @@
       else { const s=52*DPR; const y=rand(State.ceilingY+70*DPR, State.floorY-70*DPR); State.obstacles.push({type:'honey', x:State.nextObsX, y:y-s/2, w:s, h:s}); }
       State.nextObsX += rand(220,340)*DPR*State.obsSpacingScale;
     }
-    while(State.nextMultX < targetX + 900*DPR){
-      if(Math.random()<0.4){ const fac=pickMultiplier(State.score); const y=rand(State.ceilingY+120*DPR, State.floorY-120*DPR); State.mults.push({x:State.nextMultX, y, r:12*DPR, fac}); }
-      State.nextMultX += rand(700,1200)*DPR;
-    }
-    while(State.nextPowX < targetX + 1000*DPR){
-      if(Math.random()<0.22){ const y=rand(State.ceilingY+120*DPR, State.floorY-120*DPR); State.powerups.push({type:'diamond', x:State.nextPowX, y, r:14*DPR}); }
-      State.nextPowX += rand(1200,1800)*DPR;
-    }
+    while(State.nextMultX < targetX + 900*DPR){ if(Math.random()<0.4){ const fac=pickMultiplier(State.score); const y=rand(State.ceilingY+120*DPR, State.floorY-120*DPR); State.mults.push({x:State.nextMultX, y, r:12*DPR, fac}); } State.nextMultX += rand(700,1200)*DPR; }
+    while(State.nextPowX < targetX + 1000*DPR){ if(Math.random()<0.22){ const y=rand(State.ceilingY+120*DPR, State.floorY-120*DPR); State.powerups.push({type:'diamond', x:State.nextPowX, y, r:14*DPR}); } State.nextPowX += rand(1200,1800)*DPR; }
   }
-  function spawnSellCandleCluster(baseX){
-    const count=1+(Math.random()<0.6?1:0)+(Math.random()<0.35?1:0);
-    for(let i=0;i<count;i++){
-      const lenPick=Math.random(); const len=(lenPick<0.6?rand(50,110):(lenPick<0.9?rand(110,180):rand(180,250)))*DPR;
-      const w=20*DPR; const jitterX=rand(-40,60)*DPR; const x=baseX+jitterX; let placed=false;
-      for(let tries=0;tries<10 && !placed;tries++){
-        const yMid=rand(State.ceilingY+70*DPR, State.floorY-70*DPR); const y=yMid-len/2;
-        if(canPlaceSell(x,y,len)){ State.obstacles.push({type:'sellc', x, y, w, h:len}); placed=true; }
-      }
-    }
-  }
-
-  function pickMultiplier(score){
-    let w15=0.7,w2=0.2,w5=0.08,w10=0.02;
-    if(score>1000){ w15=0.6; w2=0.22; w5=0.12; w10=0.06;}
-    if(score>5000){ w15=0.5; w2=0.25; w5=0.15; w10=0.10;}
-    const r=Math.random(); const thr=[w15,w15+w2,w15+w2+w5,1];
-    if(r<thr[0])return 1.5; if(r<thr[1])return 2; if(r<thr[2])return 5; return 10;
-  }
+  function spawnSellCandleCluster(baseX){ const count=1+(Math.random()<0.6?1:0)+(Math.random()<0.35?1:0); for(let i=0;i<count;i++){ const lenPick=Math.random(); const len=(lenPick<0.6?rand(50,110):(lenPick<0.9?rand(110,180):rand(180,250)))*DPR; const w=20*DPR; const jitterX=rand(-40,60)*DPR; const x=baseX+jitterX; let placed=false; for(let tries=0;tries<10 && !placed;tries++){ const yMid=rand(State.ceilingY+70*DPR, State.floorY-70*DPR); const y=yMid-len/2; if(canPlaceSell(x,y,len)){ State.obstacles.push({type:'sellc', x, y, w, h:len}); placed=true; } } } }
 
   function circleRectHit(cx,cy,cr,rx,ry,rw,rh){ const nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh); const dx=cx-nx, dy=cy-ny; return dx*dx+dy*dy<=cr*cr; }
   function circleCircleHit(ax,ay,ar,bx,by,br){ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy <= (ar+br)*(ar+br); }
 
-  // ---------- Update & Render ----------
-  const toSX=wx=>Math.round(wx-State.camX), toSY=wy=>Math.round(wy-State.camY);
-  function capAtY(y){ const top=capTopAt(State.capIndex); const span=(State.floorY-State.ceilingY)||1; const t=clamp((y-State.ceilingY)/span,0,1); return Math.round(top*(1-t)); }
-
+  // FX
   const FX=[]; function popText(x,y,text){ FX.push({x,y,text,t:0}); }
 
-  function update(dt){
-    if(!State.running||State.paused) return;
-    State.time+=dt;
-
+  // Update (unchanged)
+  function update(dt){ if(!State.running||State.paused) return; State.time+=dt;
     const base = Math.max(0, Math.floor(State.tx*0.05/DPR + (-State.ty)*0.12/DPR));
 
-    while(base + State.scoreExtra >= State.nextMilestone){
-      State.nextMilestone += 250;
-      State.ceilingY -= 250*DPR; State.floorTargetY -= 50*DPR; State.vx *= 1.05; State.obsSpacingScale *= 0.98; State.capIndex += 1;
-      popText(toSX(State.tx)+80*DPR, toSY(State.ceilingY)-8*DPR, 'Broke resistance. Next leg up');
-    }
+    while(base + State.scoreExtra >= State.nextMilestone){ State.nextMilestone += 250; State.ceilingY -= 250*DPR; State.floorTargetY -= 50*DPR; State.vx *= 1.05; State.obsSpacingScale *= 0.98; State.capIndex += 1; popText(toSX(State.tx)+80*DPR, toSY(State.ceilingY)-8*DPR, 'Broke resistance. Next leg up'); }
 
     State.floorY += (State.floorTargetY - State.floorY) * Math.min(1, 2*dt);
 
-    if(Input.up && !Input.down){
-      const g=220*dt*DPR; if(!State.current) State.current={x:State.tx,y:State.ty,color:'green',h:0}; State.current.h+=g; State.tx=State.current.x; State.ty=State.current.y - State.current.h;
-    } else if(Input.down && !Input.up){
-      const g=220*dt*DPR; if(!State.current) State.current={x:State.tx,y:State.ty,color:'red',h:0}; State.current.h+=g; State.tx=State.current.x; State.ty=State.current.y + State.current.h;
-    }
+    if(Input.up && !Input.down){ const g=220*dt*DPR; if(!State.current) State.current={x:State.tx,y:State.ty,color:'green',h:0}; State.current.h+=g; State.tx=State.current.x; State.ty=State.current.y - State.current.h; }
+    else if(Input.down && !Input.up){ const g=220*dt*DPR; if(!State.current) State.current={x:State.tx,y:State.ty,color:'red',h:0}; State.current.h+=g; State.tx=State.current.x; State.ty=State.current.y + State.current.h; }
 
-    const advance = Math.max(1, State.vx*dt);
-    State.trailCarry += advance;
-    while(State.trailCarry >= State.trailSpacing){
-      State.trailCarry -= State.trailSpacing; State.trailToggle=!State.trailToggle;
-      State.candles.push({x:State.tx, y:State.ty, color:State.trailToggle?'green':'red', h:12*DPR});
-    }
+    const advance = Math.max(1, State.vx*dt); State.trailCarry += advance; while(State.trailCarry >= State.trailSpacing){ State.trailCarry -= State.trailSpacing; State.trailToggle=!State.trailToggle; State.candles.push({x:State.tx, y:State.ty, color:State.trailToggle?'green':'red', h:12*DPR}); }
 
     if(!(Input.up ^ Input.down)){ State.vy += State.gravity*0.2*dt; State.vy *= State.damping; State.ty += State.vy*dt; }
 
     State.tx += State.vx * dt;
 
-    // Center camera with small right/down bias
-    const { width, height } = effectiveViewport();
-    const midX = (width * DPR) * 0.45, midY = (height * DPR) * 0.55;
+    // Camera centers based on the fixed base size
+    const midX = (BASE_W * DPR) * 0.45, midY = (BASE_H * DPR) * 0.55;
     State.camX=State.tx-midX; State.camY=State.ty-midY;
 
     spawnAhead(State.tx + 800*DPR);
@@ -385,46 +347,28 @@
     if(State.ty <= State.ceilingY) return endRun();
     if(State.ty >= State.floorY)  return endRun();
 
-    const keepObs=[]; for(const o of State.obstacles){
-      const hit=circleRectHit(State.tx,State.ty,State.tipR,o.x,o.y,o.w,o.h);
-      if(hit){ if(State.shieldActive){ popText(toSX(o.x+o.w/2), toSY(o.y+o.h/2)-10*DPR, '💎 smashed'); continue; } return endRun(); }
-      keepObs.push(o);
-    } State.obstacles=keepObs;
+    const keepObs=[]; for(const o of State.obstacles){ const hit=circleRectHit(State.tx,State.ty,State.tipR,o.x,o.y,o.w,o.h); if(hit){ if(State.shieldActive){ popText(toSX(o.x+o.w/2), toSY(o.y+o.h/2)-10*DPR, '💎 smashed'); continue; } return endRun(); } keepObs.push(o);} State.obstacles=keepObs;
 
-    const keepM=[]; for(const m of State.mults){
-      if(circleCircleHit(State.tx,State.ty,State.tipR,m.x,m.y,m.r)){
-        const newExtra=Math.floor(base*(m.fac-1)); if(newExtra>0) State.scoreExtra+=newExtra; AudioMod.pickup(); popText(toSX(m.x), toSY(m.y)-10*DPR, `x${m.fac}`);
-      } else keepM.push(m);
-    } State.mults=keepM;
+    const keepM=[]; for(const m of State.mults){ if(circleCircleHit(State.tx,State.ty,State.tipR,m.x,m.y,m.r)){ const newExtra=Math.floor(base*(m.fac-1)); if(newExtra>0) State.scoreExtra+=newExtra; AudioMod.pickup(); popText(toSX(m.x), toSY(m.y)-10*DPR, `x${m.fac}`);} else keepM.push(m);} State.mults=keepM;
 
-    const keepP=[]; for(const p of State.powerups){
-      if(circleCircleHit(State.tx,State.ty,State.tipR,p.x,p.y,p.r)){
-        if(p.type==='diamond'){ State.shieldActive=true; State.shieldT=5; AudioMod.shield(); popText(toSX(p.x), toSY(p.y)-12*DPR, 'Diamond Hands!'); }
-      } else keepP.push(p);
-    } State.powerups=keepP;
+    const keepP=[]; for(const p of State.powerups){ if(circleCircleHit(State.tx,State.ty,State.tipR,p.x,p.y,p.r)){ if(p.type==='diamond'){ State.shieldActive=true; State.shieldT=5; AudioMod.shield(); popText(toSX(p.x), toSY(p.y)-12*DPR, 'Diamond Hands!'); } } else keepP.push(p);} State.powerups=keepP;
 
-    State.score = base + State.scoreExtra;
-    scoreEl.textContent=State.score;
-    bestEl.textContent=Math.max(Leaderboard.top10()[0]?.score||0, State.score);
+    State.score = base + State.scoreExtra; scoreEl.textContent=State.score; bestEl.textContent=Math.max(Leaderboard.top10()[0]?.score||0, State.score);
 
     const cullX=State.camX - 80*DPR; while(State.candles.length && State.candles[0].x < cullX) State.candles.shift();
   }
 
-  function render(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Render
+  const toSX=wx=>Math.round(wx-State.camX); const toSY=wy=>Math.round(wy-State.camY);
+  function render(){ ctx.clearRect(0,0,W(),H());
+    // grid
+    ctx.save(); ctx.globalAlpha=.07; ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--grid').trim(); const grid=40*DPR; ctx.beginPath(); const gx=(-State.camX%grid+grid)%grid, gy=(-State.camY%grid+grid)%grid; for(let x=gx;x<W();x+=grid){ctx.moveTo(x,0);ctx.lineTo(x,H());} for(let y=gy;y<H();y+=grid){ctx.moveTo(0,y);ctx.lineTo(W(),y);} ctx.stroke(); ctx.restore();
 
-    // Grid
-    ctx.save(); ctx.globalAlpha=.07; ctx.strokeStyle=getVar('--grid'); const grid=40*DPR; ctx.beginPath();
-    const gx=(-State.camX%grid+grid)%grid, gy=(-State.camY%grid+grid)%grid;
-    for(let x=gx;x<canvas.width;x+=grid){ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);}
-    for(let y=gy;y<canvas.height;y+=grid){ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);}
-    ctx.stroke(); ctx.restore();
+    // ceiling & floor
+    const cy=toSY(State.ceilingY); ctx.save(); ctx.setLineDash([8*DPR,6*DPR]); ctx.strokeStyle='#f6d365'; ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(W(),cy); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    const fy=toSY(State.floorY); ctx.save(); ctx.setLineDash([10*DPR,6*DPR]); ctx.strokeStyle='#7fd1b9'; ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(0,fy); ctx.lineTo(W(),fy); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
 
-    // Ceiling & floor
-    const cy=toSY(State.ceilingY); ctx.save(); ctx.setLineDash([8*DPR,6*DPR]); ctx.strokeStyle='#f6d365'; ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(canvas.width,cy); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-    const fy=toSY(State.floorY); ctx.save(); ctx.setLineDash([10*DPR,6*DPR]); ctx.strokeStyle='#7fd1b9'; ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(0,fy); ctx.lineTo(canvas.width,fy); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-
-    // Candles / obstacles / pickups
+    // candles/objs/ui
     for(const c of State.candles) drawCandle(c); if(State.current) drawCandle(State.current);
     for(const o of State.obstacles) drawObstacle(o);
     for(const m of State.mults) drawMult(m);
@@ -433,164 +377,66 @@
 
     drawMarketCapRail();
 
-    // Floating texts
-    for(let i=FX.length-1;i>=0;i--){
-      const fx=FX[i]; fx.t+=1/60; if(fx.t>=0.9){ FX.splice(i,1); continue; }
-      ctx.save(); ctx.globalAlpha=1 - fx.t/0.9; ctx.fillStyle='#fff'; ctx.font=`${12*DPR}px system-ui`; ctx.textAlign='center';
-      ctx.fillText(fx.text, fx.x, fx.y - fx.t*60*DPR); ctx.restore();
-    }
+    for(let i=FX.length-1;i>=0;i--){ const fx=FX[i]; fx.t+=1/60; if(fx.t>=0.9){ FX.splice(i,1); continue; } ctx.save(); ctx.globalAlpha=1 - fx.t/0.9; ctx.fillStyle='#fff'; ctx.font=`${12*DPR}px system-ui`; ctx.textAlign='center'; ctx.fillText(fx.text, fx.x, fx.y - fx.t*60*DPR); ctx.restore(); }
   }
 
-  function drawCandle(c){
-    const col=c.color==='green'?getVar('--green'):'#e74c3c'; const w=6*DPR;
-    const sx=toSX(c.x)-w/2; const sy=toSY(c.y);
-    ctx.strokeStyle=col; ctx.lineWidth=2*DPR; ctx.beginPath();
-    if(c.color==='green'){ ctx.moveTo(sx+w/2, sy - c.h - 8*DPR); ctx.lineTo(sx+w/2, sy + 2*DPR); }
-    else { ctx.moveTo(sx+w/2, sy - 2*DPR); ctx.lineTo(sx+w/2, sy + c.h + 8*DPR); }
-    ctx.stroke();
-    const top=c.color==='green'? (sy - c.h) : sy; const h=Math.max(6*DPR, c.h);
-    ctx.fillStyle=col; ctx.fillRect(sx, top, w, h);
-  }
+  function drawCandle(c){ const col=c.color==='green'?'#2ecc71':'#e74c3c'; const w=6*DPR; const sx=toSX(c.x)-w/2; const sy=toSY(c.y); ctx.strokeStyle=col; ctx.lineWidth=2*DPR; ctx.beginPath(); if(c.color==='green'){ ctx.moveTo(sx+w/2, sy - c.h - 8*DPR); ctx.lineTo(sx+w/2, sy + 2*DPR); } else { ctx.moveTo(sx+w/2, sy - 2*DPR); ctx.lineTo(sx+w/2, sy + c.h + 8*DPR); } ctx.stroke(); const top=c.color==='green'? (sy - c.h) : sy; const h=Math.max(6*DPR, c.h); ctx.fillStyle=col; ctx.fillRect(sx, top, w, h); }
 
-  function drawObstacle(o){
-    const sx=toSX(o.x), sy=toSY(o.y);
-    if(o.type==='rug'){ roundRect(sx,sy,o.w,o.h,6*DPR,'rgba(255,255,255,.06)','rgba(255,255,255,.3)'); emoji(sx+o.w/2, sy+o.h/2, '🧹'); }
+  function drawObstacle(o){ const sx=toSX(o.x), sy=toSY(o.y); if(o.type==='rug'){ roundRect(sx,sy,o.w,o.h,6*DPR,'rgba(255,255,255,.06)','rgba(255,255,255,.3)'); emoji(sx+o.w/2, sy+o.h/2, '🧹'); }
     else if(o.type==='paper'){ roundRect(sx,sy,o.w,o.h,6*DPR,'rgba(255,255,255,.08)','rgba(255,255,255,.2)'); emoji(sx+o.w/2, sy+o.h/2, '🤲'); }
     else if(o.type==='honey'){ roundRect(sx,sy,o.w,o.h,6*DPR,'rgba(255,255,255,.08)','rgba(255,255,255,.2)'); emoji(sx+o.w/2, sy+o.h/2, '🍯'); }
-    else if(o.type==='sellc'){ const w=o.w, h=o.h; ctx.fillStyle=getVar('--red'); ctx.fillRect(sx, sy, w, h); ctx.strokeStyle=getVar('--red'); ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(sx+w/2, sy-6*DPR); ctx.lineTo(sx+w/2, sy); ctx.stroke(); }
+    else if(o.type==='sellc'){ const w=o.w, h=o.h; ctx.fillStyle='#e74c3c'; ctx.fillRect(sx, sy, w, h); ctx.strokeStyle='#e74c3c'; ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(sx+w/2, sy-6*DPR); ctx.lineTo(sx+w/2, sy); ctx.stroke(); }
   }
 
   function emoji(x,y,ch){ ctx.save(); ctx.font=`${16*DPR}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#ffd280'; ctx.fillText(ch, x, y+1*DPR); ctx.restore(); }
 
-  function drawMult(m){
-    const sx=toSX(m.x), sy=toSY(m.y);
-    ctx.beginPath(); ctx.arc(sx,sy,m.r,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fill();
-    ctx.lineWidth=2*DPR; ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.stroke();
-    if(m.fac>=10){ ctx.save(); ctx.globalAlpha=.25; ctx.beginPath(); ctx.arc(sx,sy,m.r*1.6,0,Math.PI*2); ctx.fillStyle='#ffcc66'; ctx.fill(); ctx.restore(); }
-    else if(m.fac>=5){ ctx.save(); ctx.globalAlpha=.18; ctx.beginPath(); ctx.arc(sx,sy,m.r*1.4,0,Math.PI*2); ctx.fillStyle='#8fd5ff'; ctx.fill(); ctx.restore(); }
-    else if(m.fac>=2){ ctx.save(); ctx.lineWidth=3*DPR; ctx.strokeStyle='#9cf9ff'; ctx.beginPath(); ctx.arc(sx,sy,m.r*1.15,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
-    ctx.font=`${12*DPR}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle= m.fac>=10? '#ffb36d' : (m.fac>=5? '#8fd5ff' : '#c3f584'); ctx.fillText(`x${m.fac}` , sx, sy);
-  }
+  function drawMult(m){ const sx=toSX(m.x), sy=toSY(m.y); ctx.beginPath(); ctx.arc(sx,sy,m.r,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fill(); ctx.lineWidth=2*DPR; ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.stroke(); if(m.fac>=10){ ctx.save(); ctx.globalAlpha=.25; ctx.beginPath(); ctx.arc(sx,sy,m.r*1.6,0,Math.PI*2); ctx.fillStyle='#ffcc66'; ctx.fill(); ctx.restore(); } else if(m.fac>=5){ ctx.save(); ctx.globalAlpha=.18; ctx.beginPath(); ctx.arc(sx,sy,m.r*1.4,0,Math.PI*2); ctx.fillStyle='#8fd5ff'; ctx.fill(); ctx.restore(); } else if(m.fac>=2){ ctx.save(); ctx.lineWidth=3*DPR; ctx.strokeStyle='#9cf9ff'; ctx.beginPath(); ctx.arc(sx,sy,m.r*1.15,0,Math.PI*2); ctx.stroke(); ctx.restore(); } ctx.font=`${12*DPR}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle= m.fac>=10? '#ffb36d' : (m.fac>=5? '#8fd5ff' : '#c3f584'); ctx.fillText(`x${m.fac}` , sx, sy); }
 
-  function drawPowerup(p){
-    const sx=toSX(p.x), sy=toSY(p.y);
-    if(p.type==='diamond'){
-      const r=p.r; ctx.save(); ctx.translate(sx,sy); ctx.rotate(Math.PI/4);
-      ctx.fillStyle='rgba(96,165,250,.25)'; ctx.strokeStyle='rgba(96,165,250,.9)'; ctx.lineWidth=2*DPR;
-      ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r,0); ctx.lineTo(0,r); ctx.lineTo(-r,0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
-      ctx.font=`${10*DPR}px system-ui`; ctx.textAlign='center'; ctx.fillStyle='rgba(96,165,250,.9)'; ctx.fillText('💎', sx, sy+4*DPR);
-    }
-  }
+  function drawPowerup(p){ const sx=toSX(p.x), sy=toSY(p.y); if(p.type==='diamond'){ const r=p.r; ctx.save(); ctx.translate(sx,sy); ctx.rotate(Math.PI/4); ctx.fillStyle='rgba(96,165,250,.25)'; ctx.strokeStyle='rgba(96,165,250,.9)'; ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r,0); ctx.lineTo(0,r); ctx.lineTo(-r,0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); ctx.font=`${10*DPR}px system-ui`; ctx.textAlign='center'; ctx.fillStyle='rgba(96,165,250,.9)'; ctx.fillText('💎', sx, sy+4*DPR); } }
 
-  function drawToken(wx,wy,r,scale,shield){
-    const x=toSX(wx), y=toSY(wy); const visR=r*scale;
-    ctx.save(); ctx.beginPath(); ctx.arc(x,y,visR,0,Math.PI*2); ctx.closePath(); ctx.clip();
-    if(State.logo){ ctx.drawImage(State.logo, x-visR, y-visR, visR*2, visR*2); }
-    else { const grad=ctx.createRadialGradient(x-visR*.3,y-visR*.3,visR*.2,x,y,visR);
-           grad.addColorStop(0,'#fff2b0'); grad.addColorStop(1,'#d4a33b');
-           ctx.fillStyle=grad; ctx.fillRect(x-visR,y-visR,visR*2,visR*2); }
-    ctx.restore(); ctx.lineWidth=2*DPR; ctx.strokeStyle='#8c6a1d'; ctx.beginPath(); ctx.arc(x,y,visR,0,Math.PI*2); ctx.stroke();
-    if(shield){
-      const pulse=(Math.sin(performance.now()/200)+1)/2; const sR=visR+6*DPR+pulse*3*DPR;
-      ctx.save(); ctx.globalAlpha=.8; ctx.strokeStyle=getVar('--shield'); ctx.lineWidth=3*DPR; ctx.beginPath(); ctx.arc(x,y,sR,0,Math.PI*2); ctx.stroke(); ctx.restore();
-    }
-  }
+  function drawToken(wx,wy,r,scale,shield){ const x=toSX(wx), y=toSY(wy); const visR=r*scale; ctx.save(); ctx.beginPath(); ctx.arc(x,y,visR,0,Math.PI*2); ctx.closePath(); ctx.clip(); if(State.logo){ ctx.drawImage(State.logo, x-visR, y-visR, visR*2, visR*2); } else { const grad=ctx.createRadialGradient(x-visR*.3,y-visR*.3,visR*.2,x,y,visR); grad.addColorStop(0,'#fff2b0'); grad.addColorStop(1,'#d4a33b'); ctx.fillStyle=grad; ctx.fillRect(x-visR,y-visR,visR*2,visR*2); } ctx.restore(); ctx.lineWidth=2*DPR; ctx.strokeStyle='#8c6a1d'; ctx.beginPath(); ctx.arc(x,y,visR,0,Math.PI*2); ctx.stroke(); if(shield){ const pulse=(Math.sin(performance.now()/200)+1)/2; const sR=visR+6*DPR+pulse*3*DPR; ctx.save(); ctx.globalAlpha=.8; ctx.strokeStyle='#60a5fa'; ctx.lineWidth=3*DPR; ctx.beginPath(); ctx.arc(x,y,sR,0,Math.PI*2); ctx.stroke(); ctx.restore(); } }
 
   function drawMarketCapRail(){
-    const x0 = canvas.width - Math.round(68*DPR);
+    const x0 = W()-Math.round(108*DPR);
     const capTop = capTopAt(State.capIndex);
     ctx.save();
-    ctx.fillStyle='rgba(15,22,34,.85)'; ctx.fillRect(x0,0,canvas.width-x0,canvas.height);
-    ctx.strokeStyle='rgba(36,49,71,.9)'; ctx.beginPath(); ctx.moveTo(x0,0); ctx.lineTo(x0,canvas.height); ctx.stroke();
-
-    const steps=5;
-    for(let i=0;i<=steps;i++){
-      const t=i/steps;
-      const y = toSY( State.ceilingY + (State.floorY - State.ceilingY) * t );
-      ctx.strokeStyle='rgba(160,190,220,.35)'; ctx.lineWidth=1*DPR; ctx.beginPath(); ctx.moveTo(x0+2*DPR,y); ctx.lineTo(x0+12*DPR,y); ctx.stroke();
-      const val = Math.round(capTop * (1 - t));
-      ctx.fillStyle='rgba(200,220,255,.7)'; ctx.font=`${10*DPR}px system-ui`; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.fillText(fmtCap(val), x0-4*DPR, y);
-    }
-
-    const liveVal = capAtY(State.ty);
-    const yLive = toSY(State.ty);
+    ctx.fillStyle='rgba(15,22,34,.85)'; ctx.fillRect(x0,0,W()-x0,H());
+    ctx.strokeStyle='rgba(36,49,71,.9)'; ctx.beginPath(); ctx.moveTo(x0,0); ctx.lineTo(x0,H()); ctx.stroke();
+    const steps=5; for(let i=0;i<=steps;i++){ const t=i/steps; const y = toSY( State.ceilingY + (State.floorY - State.ceilingY) * t ); ctx.strokeStyle='rgba(160,190,220,.35)'; ctx.lineWidth=1*DPR; ctx.beginPath(); ctx.moveTo(x0+2*DPR,y); ctx.lineTo(x0+12*DPR,y); ctx.stroke(); const val = Math.round(capTop * (1 - t)); ctx.fillStyle='rgba(200,220,255,.7)'; ctx.font=`${12*DPR}px system-ui`; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.fillText(fmtCap(val), x0-4*DPR, y); }
+    const liveVal = capAtY(State.ty); const yLive = toSY(State.ty);
     ctx.fillStyle='rgba(100,180,255,.95)'; ctx.fillRect(x0+2*DPR, yLive-1*DPR, 16*DPR, 2*DPR);
     const label = fmtCap(liveVal);
-    const tw = ctx.measureText(label).width + 12*DPR; const th=14*DPR; const lx=x0+18*DPR, ly=yLive-th/2;
-    roundRect(lx,ly,tw,th,6*DPR,true,'rgba(140,170,210,.25)'); ctx.fillStyle='#9fd0ff'; ctx.font=`${10*DPR}px system-ui`; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(label, lx+6*DPR, yLive);
+    const tw = ctx.measureText(label).width + 12*DPR; const th=18*DPR; const lx=x0+18*DPR, ly=yLive-th/2;
+    roundRect(lx,ly,tw,th,6*DPR,true,'rgba(140,170,210,.25)'); ctx.fillStyle='#9fd0ff'; ctx.font=`${12*DPR}px system-ui`; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(label, lx+6*DPR, yLive);
     ctx.restore();
   }
 
-  function roundRect(x,y,w,h,r,fill,stroke){
-    ctx.beginPath(); const rr=Math.min(r,w/2,h/2);
-    ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y,x+w,y+h,rr); ctx.arcTo(x+w,y+h,x,y+h,rr);
-    ctx.arcTo(x,y+h,x,y,rr); ctx.arcTo(x,y,x+w,y,rr); ctx.closePath();
-    if(fill===true){ctx.fillStyle='rgba(0,0,0,.25)';ctx.fill();}
-    else if(typeof fill==='string'){ctx.fillStyle=fill;ctx.fill();}
-    if(stroke){ctx.strokeStyle=stroke;ctx.stroke();}
+  function roundRect(x,y,w,h,r,fill,stroke){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2); ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y,x+w,y+h,rr); ctx.arcTo(x+w,y+h,x,y+h,rr); ctx.arcTo(x,y+h,x,y,rr); ctx.arcTo(x,y,x+w,y,rr); ctx.closePath(); if(fill===true){ctx.fillStyle='rgba(0,0,0,.25)';ctx.fill();} else if(typeof fill==='string'){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.strokeStyle=stroke;ctx.stroke();} }
+
+  // Game over — precise market cap at death + TG payload; shows Restart & Home
+  function endRun(){ if(!State.running) return; State.running=false; AudioMod.death(); const final=State.score; finalScoreEl.textContent=final; const deathCap = capAtY(State.ty); finalCapEl.textContent=fmtCap(deathCap); const idx=Leaderboard.add(State.prefix, final); renderLB(idx); overOv.classList.add('show');
+    try { if (IS_TG && Telegram.WebApp) { const payload = { event:'game_over', score:final, marketCap:deathCap, name:State.prefix }; Telegram.WebApp.sendData(JSON.stringify(payload)); } } catch(e){}
   }
-  function getVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function renderLB(playerIndex){ lbBody.innerHTML=''; const top=Leaderboard.top10(); top.forEach((e,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${i+1}</td><td>${e.name}</td><td>${e.score}</td><td class="muted">${e.date}</td>`; lbBody.appendChild(tr); }); const all=JSON.parse(localStorage.getItem('ccc_lb_v11')||'[]'); const place=all.findIndex(e=>e.name===State.prefix && e.score===State.score)+1; if(place>10){ rankLine.textContent=`${place}th - ${State.prefix}`; } else { rankLine.textContent = `You placed #${place}`; lbBody.querySelectorAll('tr')[place-1]?.classList.add('player-rank'); } }
 
-  // ---------- Game Over (sends score to bot; has Restart & Home) ----------
-  function endRun(){
-    if(!State.running) return;
-    State.running=false; AudioMod.death();
-    const final=State.score; finalScoreEl.textContent=final;
-    const deathCap = (function(){ const span=(State.floorY-State.ceilingY)||1; const t=clamp((State.ty-State.ceilingY)/span,0,1); return Math.round(capTopAt(State.capIndex)*(1-t)); })();
-    finalCapEl.textContent=fmtCap(deathCap);
-    Leaderboard.add(State.prefix, final);
-    renderLB();
-    overOv.classList.add('show');
+  // Self-tests
+  (function selfTests(){ try{ console.assert(fmtCap(1500)==='1.50k','fmtCap k'); console.assert(fmtCap(1e6).includes('M'),'fmtCap M'); console.assert(capTopAt(0)===1e5 && capTopAt(1)===5e5 && capTopAt(2)===1e6,'capTop sequence'); }catch(e){ console.warn('[CCC] self-tests issue',e);} })();
 
-    // TG payload
-    try {
-      if (IS_TG && Telegram.WebApp) {
-        const payload = { event:'game_over', score:final, marketCap:deathCap, name:State.prefix };
-        if (Telegram.WebApp.HapticFeedback && Telegram.WebApp.HapticFeedback.notificationOccurred){
-          Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-        }
-        Telegram.WebApp.sendData(JSON.stringify(payload));
-      }
-    } catch(e){}
-  }
-
-  function renderLB(){
-    lbBody.innerHTML='';
-    const top=Leaderboard.top10();
-    top.forEach((e,i)=>{
-      const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${i+1}</td><td>${e.name}</td><td>${e.score}</td><td class="muted">${e.date}</td>`;
-      lbBody.appendChild(tr);
-    });
-  }
-
-  // ---------- Main Loop ----------
-  (function selfTests(){ try{
-    console.assert(fmtCap(1500)==='1.50k'); console.assert(fmtCap(1e6).includes('M')); console.assert(capTopAt(0)===1e5 && capTopAt(1)===5e5);
-  }catch(e){ console.warn('[CCC] self-tests issue',e);} })();
-
-  let last=performance.now();
-  function loop(t){ const dt=Math.min(.033,(t-last)/1000); last=t; update(dt); render(); requestAnimationFrame(loop); }
-  requestAnimationFrame(loop);
-
-})(); // end IIFE
+  // Loop
+  let last=performance.now(); function loop(t){ const dt=Math.min(.033,(t-last)/1000); last=t; update(dt); render(); requestAnimationFrame(loop); } requestAnimationFrame(loop);
+})(); // IIFE
 </script>
 
-<!-- Telegram bridge: ready/expand + MainButton to Start -->
+<!-- Telegram MainButton -> Start (optional) -->
 <script>
 (function(){
   var IS_TG = (typeof window !== 'undefined' && window.Telegram && Telegram.WebApp);
-  function initTelegramUI(){
+  function init(){
     if(!IS_TG) return;
     try{
-      var tg = Telegram.WebApp;
-      tg.ready();
-      tg.expand();
-      if (tg.HapticFeedback && tg.HapticFeedback.impactOccurred){
-        tg.HapticFeedback.impactOccurred('light');
-      }
-      var startEl = document.getElementById('startBtn');
+      var tg=Telegram.WebApp;
+      tg.ready(); tg.expand();
+      var startEl=document.getElementById('startBtn');
       if(startEl){
         tg.MainButton.setText('Start');
         tg.MainButton.show();
@@ -598,9 +444,10 @@
       }
     }catch(e){}
   }
-  if(document.readyState==='complete' || document.readyState==='interactive'){ initTelegramUI(); }
-  else{ document.addEventListener('DOMContentLoaded', initTelegramUI); }
+  if(document.readyState==='complete' || document.readyState==='interactive') init();
+  else document.addEventListener('DOMContentLoaded', init);
 })();
 </script>
+
 </body>
 </html>
