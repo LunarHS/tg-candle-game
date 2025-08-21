@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Crypto Candles</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  
+  <style>
+    body { margin:0; font-family: sans-serif; background:#111; color:#fff; text-align:center; }
+    canvas { background:#000; display:block; margin:0 auto; }
+    #startBtn { padding:1em 2em; margin-top:2em; font-size:1.2em; }
+    #gameOver { display:none; margin-top:2em; }
+  </style>
+</head>
+<body>
+  <h1>Crypto Candle Climb</h1>
+  <button id="startBtn">Start</button>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  
+  <div id="gameOver">
+    <h2>Game Over</h2>
+    <p>Score: <span id="finalScore">0</span></p>
+    <p>Market Cap: <span id="finalCap">$0</span></p>
+  </div>
+
+  <script>
+  'use strict';
+
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const startBtn = document.getElementById('startBtn');
+  const gameOverDiv = document.getElementById('gameOver');
+  const finalScoreEl = document.getElementById('finalScore');
+  const finalCapEl = document.getElementById('finalCap');
+
+  let State = { running:false, score:0, ty:0, prefix:"Player" };
+
+  function startGame(){
+    State.running = true;
+    State.score = 0;
+    gameOverDiv.style.display="none";
+    if (Telegram && Telegram.WebApp && Telegram.WebApp.MainButton) {
+      try { Telegram.WebApp.MainButton.hide(); } catch(e){}
+    }
+    loop();
+  }
+
+  function loop(){
+    if(!State.running) return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // Demo: increment score
+    State.score++;
+    ctx.fillStyle="#0f0";
+    ctx.fillText("Score: "+State.score,10,20);
+
+    if(State.score > 200){ endRun(); return; }
+
+    requestAnimationFrame(loop);
+  }
+
+  function fmtCap(x){ return "$" + x.toLocaleString(); }
+  function capAtY(y){ return 1000000 + y*123; }
+
+  function endRun(){
+    if(!State.running) return;
+    State.running=false;
+    const final = State.score;
+    finalScoreEl.textContent = final;
+    const deathCap = capAtY(State.ty);
+    finalCapEl.textContent = fmtCap(deathCap);
+    gameOverDiv.style.display="block";
+
+    // Telegram reporting
+    try {
+      if (Telegram && Telegram.WebApp) {
+        const payload = {
+          event:'game_over',
+          score:final,
+          marketCap:deathCap,
+          name:State.prefix
+        };
+        if (Telegram.WebApp.HapticFeedback && Telegram.WebApp.HapticFeedback.notificationOccurred){
+          Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        }
+        Telegram.WebApp.sendData(JSON.stringify(payload));
+      }
+    } catch(e){}
+  }
+
+  startBtn.addEventListener('click', ()=> startGame());
+  </script>
+
+  <!-- TG Bridge -->
+  <script>
+  (function(){
+    var IS_TG = (typeof window !== 'undefined' && window.Telegram && Telegram.WebApp);
+    function initTelegramUI(){
+      if(!IS_TG) return;
+      try {
+        var tg = Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        if (tg.HapticFeedback && tg.HapticFeedback.impactOccurred){
+          tg.HapticFeedback.impactOccurred('light');
+        }
+        var tp = tg.themeParams || {};
+        if(tp.bg_color) document.body.style.background=tp.bg_color;
+        if(tp.text_color) document.body.style.color=tp.text_color;
+
+        // Wire Start button
+        const startEl = document.getElementById('startBtn');
+        if(startEl){
+          tg.MainButton.setText('Start');
+          tg.MainButton.show();
+          tg.MainButton.onClick(()=>{ startEl.click(); tg.MainButton.hide(); });
+        }
+      } catch(e){}
+    }
+    if(document.readyState==='complete' || document.readyState==='interactive'){
+      initTelegramUI();
+    } else {
+      document.addEventListener('DOMContentLoaded', initTelegramUI);
+    }
+    window.__tgSendGameEvent = function(payload){
+      try {
+        if(IS_TG && Telegram.WebApp && Telegram.WebApp.sendData){
+          Telegram.WebApp.sendData(JSON.stringify(payload));
+        }
+      } catch(e){}
+    };
+  })();
+  </script>
+</body>
+</html>
