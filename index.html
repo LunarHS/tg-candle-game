@@ -1,87 +1,337 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Crypto Candles</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <!-- Telegram WebApp SDK -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  
-  <style>
-    body { margin:0; font-family: sans-serif; background:#111; color:#fff; text-align:center; }
-    canvas { background:#000; display:block; margin:0 auto; }
-    #startBtn { padding:1em 2em; margin-top:2em; font-size:1.2em; }
-    #gameOver { display:none; margin-top:2em; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Crypto Candle Climb — v11e</title>
+
+<!-- Telegram WebApp SDK -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+  :root{ --bg:#0b0f14; --panel:rgba(15,22,30,.9); --text:#e6f0ff; --green:#2ecc71; --red:#e74c3c; --grid:#9ab3ff; --shield:#60a5fa; --rail:#111722; --railborder:#243147 }
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;overflow:hidden}
+  canvas{display:block;background:linear-gradient(180deg,#0b0f14,#0e141c)}
+  .hud{position:fixed;inset:0;pointer-events:none}
+  .scorebox{position:absolute;top:8px;left:8px;background:var(--panel);padding:8px 10px;border-radius:10px;font-weight:800;font-size:14px;pointer-events:auto}
+  .mini{position:absolute;top:8px;right:8px;display:flex;gap:8px}
+  .mini button{pointer-events:auto;border:1px solid rgba(255,255,255,.08);background:var(--panel);color:var(--text);padding:8px 10px;border-radius:10px;font-weight:700}
+  .controls{position:fixed;left:0;right:0;bottom:env(safe-area-inset-bottom,0);display:flex;gap:10px;padding:8px}
+  .btn{flex:1;min-height:64px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(63, 30, 117, 0.1);color:var(--text);font-size:18px;font-weight:900;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .btn:active,.btn.flash{background:rgba(255,255,255,.2)}
+  .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.55)}
+  .overlay.show{display:flex}
+  .panel{width:min(560px,92vw);background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px}
+  .panel h1{margin:0 0 8px;font-size:22px}
+  .row{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
+  .primary{background:linear-gradient(180deg,#6aa8ff,#4f90ff);color:#fff;border:none;padding:10px 16px;border-radius:12px;font-weight:800;cursor:pointer}
+  .field{display:flex;gap:8px;align-items:center;margin-top:10px}
+  .field input[type=text]{flex:1;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);outline:none;font-weight:800;text-transform:uppercase;text-align:center}
+  .field input[type=file]{padding:6px;background:transparent;border:none}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+  th,td{padding:6px 8px;border-bottom:1px dashed rgba(255,255,255,.12)}
+  .muted{opacity:.75}
+  .player-rank{background:rgba(255,255,255,.06)}
+  /* right-side market-cap rail */
+  .rail{position:fixed;top:0;right:0;width:68px;height:100vh;background:linear-gradient(180deg,var(--rail),#0b1118);border-left:1px solid var(--railborder);pointer-events:none}
+</style>
 </head>
 <body>
-  <h1>Crypto Candle Climb</h1>
-  <button id="startBtn">Start</button>
-  <canvas id="gameCanvas" width="400" height="600"></canvas>
-  
-  <div id="gameOver">
-    <h2>Game Over</h2>
-    <p>Score: <span id="finalScore">0</span></p>
-    <p>Market Cap: <span id="finalCap">$0</span></p>
+  <canvas id="game"></canvas>
+  <div id="capRail" class="rail"></div>
+
+  <div class="hud">
+    <div class="scorebox">Chart: <span id="pair">ETH/USDT</span> (<span id="score">0</span>) · Best: <span id="best">0</span> · <span id="shieldHUD" class="muted"></span></div>
+    <div class="mini">
+      <button id="pauseBtn">⏸️</button>
+      <button id="muteBtn">🔊</button>
+    </div>
   </div>
 
-  <script>
-  'use strict';
+  <div class="controls">
+    <button id="buyBtn" class="btn">BUY (hold)</button>
+    <button id="sellBtn" class="btn">SELL (hold)</button>
+  </div>
 
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
-  const startBtn = document.getElementById('startBtn');
-  const gameOverDiv = document.getElementById('gameOver');
-  const finalScoreEl = document.getElementById('finalScore');
-  const finalCapEl = document.getElementById('finalCap');
+  <!-- Start Overlay (name + logo upload) -->
+  <div id="startOv" class="overlay show">
+    <div class="panel">
+      <h1>Print to ATH</h1>
+      <p>Trail alternates green/red. Hold <b>BUY</b> for a single up candle; <b>SELL</b> for a single down candle. Avoid rugs, red sell candles, paper hands 🤲, honey pots 🍯. Ceiling & floor rise as you score. Power-up: <b>Diamond Hands</b> — shield to smash obstacles for 5s.</p>
+      <div class="field"><label class="muted">Chart prefix</label><input id="nameInput" type="text" maxlength="8" value="ETH" placeholder="ETH" /></div>
+      <div class="field"><label class="muted">Token logo</label><input id="logoInput" type="file" accept="image/*" /></div>
+      <div class="row"><button id="startBtn" class="primary">Start</button></div>
+    </div>
+  </div>
 
-  let State = { running:false, score:0, ty:0, prefix:"Player" };
+  <!-- Game Over / Leaderboard -->
+  <div id="overOv" class="overlay">
+    <div class="panel">
+      <h1>Game Over</h1>
+      <p>Final Score: <b id="finalScore">0</b></p>
+      <p>Market Cap at death: <b id="finalCap">0</b></p>
+      <h2 style="margin:8px 0 4px;font-size:18px">Local Top 10</h2>
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>Score</th><th class="muted">Date</th></tr></thead>
+        <tbody id="lbBody"></tbody>
+      </table>
+      <div id="rankLine" class="muted" style="margin-top:8px"></div>
+      <div class="row">
+        <button id="homeBtn" class="primary" style="background:linear-gradient(180deg,#9aa6b2,#7c8794)">Home</button>
+        <button id="restartBtn" class="primary">Restart</button>
+      </div>
+    </div>
+  </div>
 
-  function startGame(){
-    State.running = true;
-    State.score = 0;
-    gameOverDiv.style.display="none";
-    if (Telegram && Telegram.WebApp && Telegram.WebApp.MainButton) {
-      try { Telegram.WebApp.MainButton.hide(); } catch(e){}
-    }
-    loop();
+<script>
+(()=>{'use strict';
+  const DPR=Math.max(1,Math.floor(devicePixelRatio||1));
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const rand=(a,b)=>a+Math.random()*(b-a);
+
+  // Canvas
+  const canvas=document.getElementById('game');
+  const ctx=canvas.getContext('2d');
+  function resize(){ canvas.width=Math.floor(innerWidth*DPR); canvas.height=Math.floor(innerHeight*DPR);} resize(); addEventListener('resize',resize);
+  const W=()=>canvas.width, H=()=>canvas.height;
+
+  // UI refs
+  const pairEl=document.getElementById('pair'), scoreEl=document.getElementById('score'), bestEl=document.getElementById('best');
+  const startOv=document.getElementById('startOv'), overOv=document.getElementById('overOv');
+  const nameInput=document.getElementById('nameInput'), logoInput=document.getElementById('logoInput');
+  const startBtn=document.getElementById('startBtn'), restartBtn=document.getElementById('restartBtn'), homeBtn=document.getElementById('homeBtn');
+  const buyBtn=document.getElementById('buyBtn'), sellBtn=document.getElementById('sellBtn');
+  const lbBody=document.getElementById('lbBody'), finalScoreEl=document.getElementById('finalScore'), finalCapEl=document.getElementById('finalCap'), rankLine=document.getElementById('rankLine');
+  const pauseBtn=document.getElementById('pauseBtn'), muteBtn=document.getElementById('muteBtn');
+  const shieldHUD=document.getElementById('shieldHUD');
+
+  // Audio
+  const AudioMod=(()=>{let ac=null,muted=false;const ensure=()=>{if(!ac){const A=window.AudioContext||window.webkitAudioContext;if(A) ac=new A();} return ac;}; const tone=(f=440,d=.08,t='sine',v=.2)=>{ if(muted) return; const a=ensure(); if(!a) return; const n=a.currentTime,o=a.createOscillator(),g=a.createGain(); o.type=t; o.frequency.setValueAtTime(f,n); g.gain.setValueAtTime(0,n); g.gain.linearRampToValueAtTime(v,n+.005); g.gain.exponentialRampToValueAtTime(.0001,n+d); o.connect(g).connect(a.destination); o.start(n); o.stop(n+d+.02); }; return { tap:()=>tone(520,.05,'square',.12), pickup:()=>tone(880,.12,'triangle',.2), death:()=>tone(110,.25,'sawtooth',.25), shield:()=>tone(660,.2,'sine',.25), unlock:()=>ensure(), toggle:()=>muted=!muted, isMuted:()=>muted };})();
+
+  // Leaderboard
+  const LBKEY='ccc_lb_v11';
+  const Leaderboard={ read(){ try{return JSON.parse(localStorage.getItem(LBKEY))||[]}catch{return[]} }, write(l){ localStorage.setItem(LBKEY, JSON.stringify(l)); }, add(name,score){ const l=this.read(); l.push({name,score,date:new Date().toISOString().slice(0,10)}); l.sort((a,b)=>b.score-a.score); this.write(l); return l.findIndex(e=>e.name===name && e.score===score); }, top10(){ return this.read().slice(0,10); }, rankOf(score){ const l=this.read(); for(let i=0;i<l.length;i++){ if(score>=l[i].score) return i; } return l.length; } };
+
+  // === Uncapped Market Cap ===
+  function capTopAt(index){ // index >= 0
+    const exp0 = 5; // start at 10^5 = 100k
+    const exp = exp0 + Math.floor(index/2);
+    const mant = (index % 2 === 0) ? 1 : 5;
+    return mant * Math.pow(10, exp);
+  }
+  function fmtCap(n){
+    const sign = n<0?'-':''; n=Math.abs(n);
+    if(n<1e3) return sign + Math.round(n);
+    const units=['k','M','B','T','Qa','Qi','Sx','Sp','Oc','No','De'];
+    let u=-1; while(n>=1000 && u<units.length-1){ n/=1000; u++; }
+    const digits = n>=100?0 : n>=10?1 : 2;
+    return sign + n.toFixed(digits) + units[u];
+  }
+  function capAtY(y){
+    const top = capTopAt(State.capIndex);
+    const span = (State.floorY - State.ceilingY) || 1;
+    const t = clamp((y - State.ceilingY) / span, 0, 1);
+    return Math.round(top * (1 - t));
   }
 
-  function loop(){
-    if(!State.running) return;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    // Demo: increment score
-    State.score++;
-    ctx.fillStyle="#0f0";
-    ctx.fillText("Score: "+State.score,10,20);
+  // State (kept)
+  const State={ running:false, paused:false, time:0, score:0, best:0, prefix:'ETH',
+    tx:0, ty:0, vx:180, vy:0, accel:520, gravity:360, damping:.985,
+    camX:0, camY:0,
+    candles:[], current:null,
+    trailCarry:0, trailSpacing:10*DPR, trailToggle:false,
+    obstacles:[], nextObsX:600*DPR, obsSpacingScale:1.0,
+    mults:[], nextMultX:1200*DPR,
+    powerups:[], nextPowX:1600*DPR,
+    logo:null, tipR:6*DPR, logoScale:2,
+    ceilingY:-220*DPR, floorY:(-220*DPR+520*DPR), floorTargetY:0,
+    nextMilestone:250,
+    scoreExtra:0,
+    shieldActive:false, shieldT:0,
+    capIndex:0
+  };
+  State.floorTargetY=State.floorY;
 
-    if(State.score > 200){ endRun(); return; }
+  // Input (kept)
+  const Input={up:false,down:false};
+  function pressUp(){ AudioMod.unlock(); Input.up=true; buyBtn.classList.add('flash'); AudioMod.tap(); if(!State.current) State.current={x:State.tx,y:State.ty,color:'green',h:0}; }
+  function releaseUp(){ Input.up=false; buyBtn.classList.remove('flash'); finalizeHold(); }
+  function pressDown(){ AudioMod.unlock(); Input.down=true; sellBtn.classList.add('flash'); AudioMod.tap(); if(!State.current) State.current={x:State.tx,y:State.ty,color:'red',h:0}; }
+  function releaseDown(){ Input.down=false; sellBtn.classList.remove('flash'); finalizeHold(); }
+  function finalizeHold(){ if(State.current){ State.candles.push(State.current); State.current=null; } }
+  ;['mousedown','touchstart'].forEach(e=>{ buyBtn.addEventListener(e,ev=>{ev.preventDefault();pressUp();}); sellBtn.addEventListener(e,ev=>{ev.preventDefault();pressDown();}); });
+  ;['mouseup','mouseleave','touchend','touchcancel'].forEach(e=>{ buyBtn.addEventListener(e,ev=>{ev.preventDefault();releaseUp();}); sellBtn.addEventListener(e,ev=>{ev.preventDefault();releaseDown();}); });
+  addEventListener('keydown',e=>{ if(e.repeat)return; if(['w','W','ArrowUp'].includes(e.key))pressUp(); if(['s','S','ArrowDown'].includes(e.key))pressDown(); if(e.key==='p'||e.key==='P') togglePause(); if(e.key==='m'||e.key==='M') toggleMute(); });
+  addEventListener('keyup',e=>{ if(['w','W','ArrowUp'].includes(e.key))releaseUp(); if(['s','S','ArrowDown'].includes(e.key))releaseDown(); });
+  function togglePause(){ if(!State.running) return; State.paused=!State.paused; document.getElementById('pauseBtn').textContent=State.paused?'▶️':'⏸️'; if(!State.paused) last=performance.now(); }
+  function toggleMute(){ const m=AudioMod.toggle(); document.getElementById('muteBtn').textContent=m?'🔇':'🔊'; }
 
-    requestAnimationFrame(loop);
-  }
+  // Start & logo
+  startBtn.addEventListener('click',()=>{
+    // Hide TG MainButton at start if inside Telegram
+    try { if (window.Telegram && Telegram.WebApp && Telegram.WebApp.MainButton) Telegram.WebApp.MainButton.hide(); } catch(e){}
+    State.prefix=(nameInput.value||'ETH').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8)||'ETH'; pairEl.textContent=State.prefix+'/USDT';
+    const file=logoInput.files?.[0]; if(file){ const img=new Image(); img.onload=()=>{ State.logo=img; begin(); }; img.src=URL.createObjectURL(file); } else { State.logo=null; begin(); }
+  });
 
-  function fmtCap(x){ return "$" + x.toLocaleString(); }
-  function capAtY(y){ return 1000000 + y*123; }
-
-  function endRun(){
-    if(!State.running) return;
-    State.running=false;
-    const final = State.score;
-    finalScoreEl.textContent = final;
-    const deathCap = capAtY(State.ty);
-    finalCapEl.textContent = fmtCap(deathCap);
-    gameOverDiv.style.display="block";
-
-    // Telegram reporting
+  // New: Home button (only change requested besides Restart existing)
+  homeBtn.addEventListener('click',()=>{
+    overOv.classList.remove('show');
+    startOv.classList.add('show');
+    // Optionally show TG MainButton again for Start
     try {
-      if (Telegram && Telegram.WebApp) {
-        const payload = {
-          event:'game_over',
-          score:final,
-          marketCap:deathCap,
-          name:State.prefix
-        };
+      if (window.Telegram && Telegram.WebApp && Telegram.WebApp.MainButton) {
+        Telegram.WebApp.MainButton.setText('Start');
+        Telegram.WebApp.MainButton.show();
+      }
+    } catch(e){}
+  });
+
+  restartBtn.addEventListener('click',()=>{ overOv.classList.remove('show'); begin(); });
+
+  function begin(){ State.running=true; State.paused=false; State.time=0; State.score=0; State.vx=180; State.vy=0; State.tx=0; State.ty=0; State.camX=0; State.camY=0; State.candles.length=0; State.current=null; State.trailCarry=0; State.trailToggle=false; State.obstacles.length=0; State.nextObsX=600*DPR; State.obsSpacingScale=1.0; State.mults.length=0; State.nextMultX=1200*DPR; State.powerups.length=0; State.nextPowX=1600*DPR; State.ceilingY=-220*DPR; State.floorY = -220*DPR + 520*DPR; State.floorTargetY=State.floorY; State.nextMilestone=250; State.scoreExtra=0; State.shieldActive=false; State.shieldT=0; State.capIndex=0; bestEl.textContent=Leaderboard.top10()[0]?.score||0; startOv.classList.remove('show'); last=performance.now(); }
+
+  // Rarity for multipliers (kept)
+  function pickMultiplier(score){ let w15=0.7,w2=0.2,w5=0.08,w10=0.02; if(score>1000){ w15=0.6; w2=0.22; w5=0.12; w10=0.06;} if(score>5000){ w15=0.5; w2=0.25; w5=0.15; w10=0.10;} const r=Math.random(); const thr=[w15,w15+w2,w15+w2+w5,1]; if(r<thr[0])return 1.5; if(r<thr[1])return 2; if(r<thr[2])return 5; return 10; }
+
+  // Gap guarantee for sell clusters (kept)
+  const MIN_GAP_MULT=2.2; function corridorTop(){return State.ceilingY;} function corridorBot(){return State.floorY;}
+  function canPlaceSell(x,y,h){ const top=corridorTop(), bot=corridorBot(); if(bot-top<=0) return false; const MIN_GAP=State.tipR*MIN_GAP_MULT; if(bot-top<MIN_GAP) return false; const span=36*DPR; const segs=[]; for(const o of State.obstacles){ if(o.type!=='sellc') continue; if(Math.abs(o.x-x)>span) continue; const a=Math.max(o.y,top), b=Math.min(o.y+o.h,bot); if(b>a) segs.push({a,b}); } const ca=Math.max(y,top), cb=Math.min(y+h,bot); if(cb>ca) segs.push({a:ca,b:cb}); if(segs.length===0) return true; segs.sort((A,B)=>A.a-B.a); let curA=segs[0].a, curB=segs[0].b; let maxGap=Math.max(curA-top,0); for(let i=1;i<segs.length;i++){const s=segs[i]; if(s.a<=curB){curB=Math.max(curB,s.b);} else {maxGap=Math.max(maxGap,s.a-curB); curA=s.a; curB=s.b;}} maxGap=Math.max(maxGap,bot-curB); return maxGap>=MIN_GAP; }
+
+  // Spawners (kept)
+  function spawnAhead(targetX){
+    while(State.nextObsX < targetX + 1200*DPR){
+      const roll=Math.random();
+      if(roll < 0.75){ spawnSellCandleCluster(State.nextObsX); }
+      else if (roll < 0.85){ const s=56*DPR; const y=rand(State.ceilingY+70*DPR, State.floorY-70*DPR); State.obstacles.push({type:'rug', x:State.nextObsX, y:y-s/2, w:s, h:s}); }
+      else if (roll < 0.93){ const s=48*DPR; const y=rand(State.ceilingY+70*DPR, State.floorY-70*DPR); State.obstacles.push({type:'paper', x:State.nextObsX, y:y-s/2, w:s, h:s}); }
+      else { const s=52*DPR; const y=rand(State.ceilingY+70*DPR, State.floorY-70*DPR); State.obstacles.push({type:'honey', x:State.nextObsX, y:y-s/2, w:s, h:s}); }
+      State.nextObsX += rand(220,340)*DPR*State.obsSpacingScale;
+    }
+    while(State.nextMultX < targetX + 900*DPR){ if(Math.random()<0.4){ const fac=pickMultiplier(State.score); const y=rand(State.ceilingY+120*DPR, State.floorY-120*DPR); State.mults.push({x:State.nextMultX, y, r:12*DPR, fac}); } State.nextMultX += rand(700,1200)*DPR; }
+    while(State.nextPowX < targetX + 1000*DPR){ if(Math.random()<0.22){ const y=rand(State.ceilingY+120*DPR, State.floorY-120*DPR); State.powerups.push({type:'diamond', x:State.nextPowX, y, r:14*DPR}); } State.nextPowX += rand(1200,1800)*DPR; }
+  }
+  function spawnSellCandleCluster(baseX){ const count=1+(Math.random()<0.6?1:0)+(Math.random()<0.35?1:0); for(let i=0;i<count;i++){ const lenPick=Math.random(); const len=(lenPick<0.6?rand(50,110):(lenPick<0.9?rand(110,180):rand(180,250)))*DPR; const w=20*DPR; const jitterX=rand(-40,60)*DPR; const x=baseX+jitterX; let placed=false; for(let tries=0;tries<10 && !placed;tries++){ const yMid=rand(State.ceilingY+70*DPR, State.floorY-70*DPR); const y=yMid-len/2; if(canPlaceSell(x,y,len)){ State.obstacles.push({type:'sellc', x, y, w, h:len}); placed=true; } } } }
+
+  function circleRectHit(cx,cy,cr,rx,ry,rw,rh){ const nx=clamp(cx,rx,rx+rw), ny=clamp(cy,ry,ry+rh); const dx=cx-nx, dy=cy-ny; return dx*dx+dy*dy<=cr*cr; }
+  function circleCircleHit(ax,ay,ar,bx,by,br){ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy <= (ar+br)*(ar+br); }
+
+  // FX
+  const FX=[]; function popText(x,y,text){ FX.push({x,y,text,t:0}); }
+
+  // Update (kept; add uncapped capIndex growth)
+  function update(dt){ if(!State.running||State.paused) return; State.time+=dt;
+    const base = Math.max(0, Math.floor(State.tx*0.05/DPR + (-State.ty)*0.12/DPR));
+
+    while(base + State.scoreExtra >= State.nextMilestone){ State.nextMilestone += 250; State.ceilingY -= 250*DPR; State.floorTargetY -= 50*DPR; State.vx *= 1.05; State.obsSpacingScale *= 0.98; State.capIndex += 1; popText(toSX(State.tx)+80*DPR, toSY(State.ceilingY)-8*DPR, 'Broke resistance. Next leg up'); }
+
+    State.floorY += (State.floorTargetY - State.floorY) * Math.min(1, 2*dt);
+
+    if(Input.up && !Input.down){ const g=220*dt*DPR; if(!State.current) State.current={x:State.tx,y:State.ty,color:'green',h:0}; State.current.h+=g; State.tx=State.current.x; State.ty=State.current.y - State.current.h; }
+    else if(Input.down && !Input.up){ const g=220*dt*DPR; if(!State.current) State.current={x:State.tx,y:State.ty,color:'red',h:0}; State.current.h+=g; State.tx=State.current.x; State.ty=State.current.y + State.current.h; }
+
+    const advance = Math.max(1, State.vx*dt); State.trailCarry += advance; while(State.trailCarry >= State.trailSpacing){ State.trailCarry -= State.trailSpacing; State.trailToggle=!State.trailToggle; State.candles.push({x:State.tx, y:State.ty, color:State.trailToggle?'green':'red', h:12*DPR}); }
+
+    if(!(Input.up ^ Input.down)){ State.vy += State.gravity*0.2*dt; State.vy *= State.damping; State.ty += State.vy*dt; }
+
+    State.tx += State.vx * dt;
+
+    const midX=W()*0.45, midY=H()*0.55; State.camX=State.tx-midX; State.camY=State.ty-midY;
+
+    spawnAhead(State.tx + 800*DPR);
+
+    if(State.shieldActive){ State.shieldT -= dt; if(State.shieldT<=0){ State.shieldActive=false; State.shieldT=0; } }
+    shieldHUD.textContent = State.shieldActive? `🛡️ ${State.shieldT.toFixed(1)}s` : '';
+
+    if(State.ty <= State.ceilingY) return endRun();
+    if(State.ty >= State.floorY)  return endRun();
+
+    const keepObs=[]; for(const o of State.obstacles){ const hit=circleRectHit(State.tx,State.ty,State.tipR,o.x,o.y,o.w,o.h); if(hit){ if(State.shieldActive){ popText(toSX(o.x+o.w/2), toSY(o.y+o.h/2)-10*DPR, '💎 smashed'); continue; } return endRun(); } keepObs.push(o);} State.obstacles=keepObs;
+
+    const keepM=[]; for(const m of State.mults){ if(circleCircleHit(State.tx,State.ty,State.tipR,m.x,m.y,m.r)){ const newExtra=Math.floor(base*(m.fac-1)); if(newExtra>0) State.scoreExtra+=newExtra; AudioMod.pickup(); popText(toSX(m.x), toSY(m.y)-10*DPR, `x${m.fac}`);} else keepM.push(m);} State.mults=keepM;
+
+    const keepP=[]; for(const p of State.powerups){ if(circleCircleHit(State.tx,State.ty,State.tipR,p.x,p.y,p.r)){ if(p.type==='diamond'){ State.shieldActive=true; State.shieldT=5; AudioMod.shield(); popText(toSX(p.x), toSY(p.y)-12*DPR, 'Diamond Hands!'); } } else keepP.push(p);} State.powerups=keepP;
+
+    State.score = base + State.scoreExtra; scoreEl.textContent=State.score; bestEl.textContent=Math.max(Leaderboard.top10()[0]?.score||0, State.score);
+
+    const cullX=State.camX - 80*DPR; while(State.candles.length && State.candles[0].x < cullX) State.candles.shift();
+  }
+
+  // Render
+  const toSX=wx=>Math.round(wx-State.camX); const toSY=wy=>Math.round(wy-State.camY);
+  let lastLiveCap=0;
+  function render(){ ctx.clearRect(0,0,W(),H());
+    // grid
+    ctx.save(); ctx.globalAlpha=.07; ctx.strokeStyle=getVar('--grid'); const grid=40*DPR; ctx.beginPath(); const gx=(-State.camX%grid+grid)%grid, gy=(-State.camY%grid+grid)%grid; for(let x=gx;x<W();x+=grid){ctx.moveTo(x,0);ctx.lineTo(x,H());} for(let y=gy;y<H();y+=grid){ctx.moveTo(0,y);ctx.lineTo(W(),y);} ctx.stroke(); ctx.restore();
+
+    // ceiling & floor
+    const cy=toSY(State.ceilingY); ctx.save(); ctx.setLineDash([8*DPR,6*DPR]); ctx.strokeStyle='#f6d365'; ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(W(),cy); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    const fy=toSY(State.floorY); ctx.save(); ctx.setLineDash([10*DPR,6*DPR]); ctx.strokeStyle='#7fd1b9'; ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(0,fy); ctx.lineTo(W(),fy); ctx.stroke(); ctx.restore();
+
+    // candles/objs/ui
+    for(const c of State.candles) drawCandle(c); if(State.current) drawCandle(State.current);
+    for(const o of State.obstacles) drawObstacle(o);
+    for(const m of State.mults) drawMult(m);
+    for(const p of State.powerups) drawPowerup(p);
+    drawToken(State.tx, State.ty, State.tipR, State.logoScale, State.shieldActive, State.shieldT);
+
+    drawMarketCapRail();
+
+    for(let i=FX.length-1;i>=0;i--){ const fx=FX[i]; fx.t+=1/60; if(fx.t>=0.9){ FX.splice(i,1); continue; } ctx.save(); ctx.globalAlpha=1 - fx.t/0.9; ctx.fillStyle='#fff'; ctx.font=`${12*DPR}px system-ui`; ctx.textAlign='center'; ctx.fillText(fx.text, fx.x, fx.y - fx.t*60*DPR); ctx.restore(); }
+  }
+
+  function drawCandle(c){ const col=c.color==='green'?getVar('--green'):'#e74c3c'; const w=6*DPR; const sx=toSX(c.x)-w/2; const sy=toSY(c.y); ctx.strokeStyle=col; ctx.lineWidth=2*DPR; ctx.beginPath(); if(c.color==='green'){ ctx.moveTo(sx+w/2, sy - c.h - 8*DPR); ctx.lineTo(sx+w/2, sy + 2*DPR); } else { ctx.moveTo(sx+w/2, sy - 2*DPR); ctx.lineTo(sx+w/2, sy + c.h + 8*DPR); } ctx.stroke(); const top=c.color==='green'? (sy - c.h) : sy; const h=Math.max(6*DPR, c.h); ctx.fillStyle=col; ctx.fillRect(sx, top, w, h); }
+
+  function drawObstacle(o){ const sx=toSX(o.x), sy=toSY(o.y); if(o.type==='rug'){ roundRect(sx,sy,o.w,o.h,6*DPR,'rgba(255,255,255,.06)','rgba(255,255,255,.3)'); emoji(sx+o.w/2, sy+o.h/2, '🧹'); }
+    else if(o.type==='paper'){ roundRect(sx,sy,o.w,o.h,6*DPR,'rgba(255,255,255,.08)','rgba(255,255,255,.2)'); emoji(sx+o.w/2, sy+o.h/2, '🤲'); }
+    else if(o.type==='honey'){ roundRect(sx,sy,o.w,o.h,6*DPR,'rgba(255,255,255,.08)','rgba(255,255,255,.2)'); emoji(sx+o.w/2, sy+o.h/2, '🍯'); }
+    else if(o.type==='sellc'){ const w=o.w, h=o.h; ctx.fillStyle=getVar('--red'); ctx.fillRect(sx, sy, w, h); ctx.strokeStyle=getVar('--red'); ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(sx+w/2, sy-6*DPR); ctx.lineTo(sx+w/2, sy); ctx.stroke(); }
+  }
+
+  function emoji(x,y,ch){ ctx.save(); ctx.font=`${16*DPR}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#ffd280'; ctx.fillText(ch, x, y+1*DPR); ctx.restore(); }
+
+  function drawMult(m){ const sx=toSX(m.x), sy=toSY(m.y); ctx.beginPath(); ctx.arc(sx,sy,m.r,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fill(); ctx.lineWidth=2*DPR; ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.stroke(); if(m.fac>=10){ ctx.save(); ctx.globalAlpha=.25; ctx.beginPath(); ctx.arc(sx,sy,m.r*1.6,0,Math.PI*2); ctx.fillStyle='#ffcc66'; ctx.fill(); ctx.restore(); } else if(m.fac>=5){ ctx.save(); ctx.globalAlpha=.18; ctx.beginPath(); ctx.arc(sx,sy,m.r*1.4,0,Math.PI*2); ctx.fillStyle='#8fd5ff'; ctx.fill(); ctx.restore(); } else if(m.fac>=2){ ctx.save(); ctx.lineWidth=3*DPR; ctx.strokeStyle='#9cf9ff'; ctx.beginPath(); ctx.arc(sx,sy,m.r*1.15,0,Math.PI*2); ctx.stroke(); ctx.restore(); } ctx.font=`${12*DPR}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle= m.fac>=10? '#ffb36d' : (m.fac>=5? '#8fd5ff' : '#c3f584'); ctx.fillText(`x${m.fac}` , sx, sy); }
+
+  function drawPowerup(p){ const sx=toSX(p.x), sy=toSY(p.y); if(p.type==='diamond'){ const r=p.r; ctx.save(); ctx.translate(sx,sy); ctx.rotate(Math.PI/4); ctx.fillStyle='rgba(96,165,250,.25)'; ctx.strokeStyle='rgba(96,165,250,.9)'; ctx.lineWidth=2*DPR; ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r,0); ctx.lineTo(0,r); ctx.lineTo(-r,0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); ctx.font=`${10*DPR}px system-ui`; ctx.textAlign='center'; ctx.fillStyle='rgba(96,165,250,.9)'; ctx.fillText('💎', sx, sy+4*DPR); } }
+
+  function drawToken(wx,wy,r,scale,shield,shieldT){ const x=toSX(wx), y=toSY(wy); const visR=r*scale; ctx.save(); ctx.beginPath(); ctx.arc(x,y,visR,0,Math.PI*2); ctx.closePath(); ctx.clip(); if(State.logo){ ctx.drawImage(State.logo, x-visR, y-visR, visR*2, visR*2); } else { const grad=ctx.createRadialGradient(x-visR*.3,y-visR*.3,visR*.2,x,y,visR); grad.addColorStop(0,'#fff2b0'); grad.addColorStop(1,'#d4a33b'); ctx.fillStyle=grad; ctx.fillRect(x-visR,y-visR,visR*2,visR*2); } ctx.restore(); ctx.lineWidth=2*DPR; ctx.strokeStyle='#8c6a1d'; ctx.beginPath(); ctx.arc(x,y,visR,0,Math.PI*2); ctx.stroke(); if(shield){ const pulse=(Math.sin(performance.now()/200)+1)/2; const sR=visR+6*DPR+pulse*3*DPR; ctx.save(); ctx.globalAlpha=.8; ctx.strokeStyle=getVar('--shield'); ctx.lineWidth=3*DPR; ctx.beginPath(); ctx.arc(x,y,sR,0,Math.PI*2); ctx.stroke(); ctx.restore(); } }
+
+  // Market-cap rail (descending, uncapped)
+  function drawMarketCapRail(){
+    const x0 = W()-Math.round(68*DPR);
+    const capTop = capTopAt(State.capIndex);
+    ctx.save();
+    ctx.fillStyle='rgba(15,22,34,.85)'; ctx.fillRect(x0,0,W()-x0,H());
+    ctx.strokeStyle='rgba(36,49,71,.9)'; ctx.beginPath(); ctx.moveTo(x0,0); ctx.lineTo(x0,H()); ctx.stroke();
+
+    const steps=5; for(let i=0;i<=steps;i++){
+      const t=i/steps;
+      const y = toSY( State.ceilingY + (State.floorY - State.ceilingY) * t );
+      ctx.strokeStyle='rgba(160,190,220,.35)'; ctx.lineWidth=1*DPR; ctx.beginPath(); ctx.moveTo(x0+2*DPR,y); ctx.lineTo(x0+12*DPR,y); ctx.stroke();
+      const val = Math.round(capTop * (1 - t));
+      ctx.fillStyle='rgba(200,220,255,.7)'; ctx.font=`${10*DPR}px system-ui`; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.fillText(fmtCap(val), x0-4*DPR, y);
+    }
+
+    const liveVal = capAtY(State.ty); lastLiveCap = liveVal;
+    const yLive = toSY(State.ty);
+    ctx.fillStyle='rgba(100,180,255,.95)'; ctx.fillRect(x0+2*DPR, yLive-1*DPR, 16*DPR, 2*DPR);
+    const label = fmtCap(liveVal);
+    const tw = ctx.measureText(label).width + 12*DPR; const th=14*DPR; const lx=x0+18*DPR, ly=yLive-th/2;
+    roundRect(lx,ly,tw,th,6*DPR,true,'rgba(140,170,210,.25)'); ctx.fillStyle='#9fd0ff'; ctx.font=`${10*DPR}px system-ui`; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(label, lx+6*DPR, yLive);
+
+    ctx.restore();
+  }
+
+  function roundRect(x,y,w,h,r,fill,stroke){ ctx.beginPath(); const rr=Math.min(r,w/2,h/2); ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y,x+w,y+h,rr); ctx.arcTo(x+w,y+h,x,y+h,rr); ctx.arcTo(x,y+h,x,y,rr); ctx.arcTo(x,y,x+w,y,rr); ctx.closePath(); if(fill===true){ctx.fillStyle='rgba(0,0,0,.25)';ctx.fill();} else if(typeof fill==='string'){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.strokeStyle=stroke;ctx.stroke();} }
+  function getVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+  // Game over — show precise market cap at death
+  function endRun(){ if(!State.running) return; State.running=false; AudioMod.death(); const final=State.score; finalScoreEl.textContent=final; const deathCap = capAtY(State.ty); finalCapEl.textContent=fmtCap(deathCap); const idx=Leaderboard.add(State.prefix, final); renderLB(idx); overOv.classList.add('show');
+
+    // Send payload to Telegram bot if inside Telegram Mini App
+    try {
+      if (window.Telegram && Telegram.WebApp) {
+        const payload = { event:'game_over', score:final, marketCap:deathCap, name:State.prefix };
         if (Telegram.WebApp.HapticFeedback && Telegram.WebApp.HapticFeedback.notificationOccurred){
           Telegram.WebApp.HapticFeedback.notificationOccurred('success');
         }
@@ -90,48 +340,48 @@
     } catch(e){}
   }
 
-  startBtn.addEventListener('click', ()=> startGame());
-  </script>
+  function renderLB(playerIndex){ lbBody.innerHTML=''; const top=Leaderboard.top10(); top.forEach((e,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${i+1}</td><td>${e.name}</td><td>${e.score}</td><td class="muted">${e.date}</td>`; lbBody.appendChild(tr); }); const all=JSON.parse(localStorage.getItem('ccc_lb_v11')||'[]'); const place=all.findIndex(e=>e.name===State.prefix && e.score===State.score)+1; if(place>10){ rankLine.textContent=`${place}th - ${State.prefix}`; } else { rankLine.textContent = `You placed #${place}`; lbBody.querySelectorAll('tr')[place-1]?.classList.add('player-rank'); } }
 
-  <!-- TG Bridge -->
-  <script>
-  (function(){
-    var IS_TG = (typeof window !== 'undefined' && window.Telegram && Telegram.WebApp);
-    function initTelegramUI(){
-      if(!IS_TG) return;
-      try {
-        var tg = Telegram.WebApp;
-        tg.ready();
-        tg.expand();
-        if (tg.HapticFeedback && tg.HapticFeedback.impactOccurred){
-          tg.HapticFeedback.impactOccurred('light');
-        }
-        var tp = tg.themeParams || {};
-        if(tp.bg_color) document.body.style.background=tp.bg_color;
-        if(tp.text_color) document.body.style.color=tp.text_color;
+  // Self-tests
+  (function selfTests(){ try{ console.assert(fmtCap(1500)==='1.50k','fmtCap k'); console.assert(fmtCap(1e6).includes('M'),'fmtCap M'); console.assert(capTopAt(0)===1e5 && capTopAt(1)===5e5 && capTopAt(2)===1e6,'capTop sequence'); console.log('[CCC v11e] self-tests OK'); }catch(e){ console.warn('[CCC v11e] self-tests issue',e);} })();
 
-        // Wire Start button
-        const startEl = document.getElementById('startBtn');
-        if(startEl){
-          tg.MainButton.setText('Start');
-          tg.MainButton.show();
-          tg.MainButton.onClick(()=>{ startEl.click(); tg.MainButton.hide(); });
-        }
-      } catch(e){}
-    }
-    if(document.readyState==='complete' || document.readyState==='interactive'){
-      initTelegramUI();
-    } else {
-      document.addEventListener('DOMContentLoaded', initTelegramUI);
-    }
-    window.__tgSendGameEvent = function(payload){
-      try {
-        if(IS_TG && Telegram.WebApp && Telegram.WebApp.sendData){
-          Telegram.WebApp.sendData(JSON.stringify(payload));
-        }
-      } catch(e){}
-    };
-  })();
-  </script>
+  // Loop
+  let last=performance.now(); function loop(t){ const dt=Math.min(.033,(t-last)/1000); last=t; update(dt); render(); requestAnimationFrame(loop); } requestAnimationFrame(loop);
+})();
+</script>
+
+<!-- Telegram Mini App bridge (non-invasive) -->
+<script>
+(function(){
+  var IS_TG = (typeof window !== 'undefined' && window.Telegram && Telegram.WebApp);
+  function initTelegramUI(){
+    if(!IS_TG) return;
+    try{
+      var tg = Telegram.WebApp;
+      tg.ready();
+      tg.expand();
+      if (tg.HapticFeedback && tg.HapticFeedback.impactOccurred){
+        tg.HapticFeedback.impactOccurred('light');
+      }
+      // Wire Telegram MainButton to Start button
+      var startEl = document.getElementById('startBtn');
+      if(startEl){
+        tg.MainButton.setText('Start');
+        tg.MainButton.show();
+        tg.MainButton.onClick(function(){ try{ startEl.click(); tg.MainButton.hide(); }catch(e){} });
+      }
+    }catch(e){}
+  }
+  if(document.readyState==='complete' || document.readyState==='interactive'){
+    initTelegramUI();
+  }else{
+    document.addEventListener('DOMContentLoaded', initTelegramUI);
+  }
+})();
+</script>
+
+<!--
+Save this single file as .html and open to play. Host on GitHub Pages / Netlify / Vercel / Cloudflare Pages. No external assets or libraries.
+-->
 </body>
 </html>
